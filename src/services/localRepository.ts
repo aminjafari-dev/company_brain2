@@ -278,9 +278,9 @@ export const localRepository: DataRepository = {
       }
     }
     results.push({
-      id: 'client-joshv',
+      id: 'client-CompanyBrain',
       type: 'client',
-      title: 'JoshV',
+      title: 'CompanyBrain',
       subtitle: 'Primary client workspace',
       tab: 'projects',
     });

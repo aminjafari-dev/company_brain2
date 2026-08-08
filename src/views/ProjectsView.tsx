@@ -12,7 +12,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, onNavigate
       <div className="mb-8">
         <h1 className="text-[32px] font-semibold text-[#191c1e] tracking-tight">Projects</h1>
         <p className="text-[15px] text-[#45464d] mt-1">
-          JoshV client workspace — products, repos, and request volume.
+          CompanyBrain client workspace — products, repos, and request volume.
         </p>
       </div>
 

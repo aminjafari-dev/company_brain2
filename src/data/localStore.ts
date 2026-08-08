@@ -1,8 +1,8 @@
 import type { AppDatabase } from '../types';
 import { createSeedDatabase } from './seed';
 
-const STORAGE_KEY = 'joshv-workspace-db-v1';
-const SESSION_KEY = 'joshv-workspace-session-v1';
+const STORAGE_KEY = 'CompanyBrain-workspace-db-v1';
+const SESSION_KEY = 'CompanyBrain-workspace-session-v1';
 
 export function loadDatabase(): AppDatabase {
   try {

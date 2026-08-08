@@ -1,4 +1,4 @@
-# JoshV Workspace — Engineering Intelligence (Dynamic Free MVP)
+# CompanyBrain Workspace — Engineering Intelligence (Dynamic Free MVP)
 
 React + Vite app that turns the static AI Studio demo into a **dynamic** product:
 
@@ -24,10 +24,10 @@ Password for all demo users: `demo1234`
 
 | Role | Email |
 |------|--------|
-| Admin | admin@joshv.demo |
-| PM | pm@joshv.demo |
-| Developer | dev@joshv.demo |
-| Client | client@joshv.demo |
+| Admin | admin@CompanyBrain.demo |
+| PM | pm@CompanyBrain.demo |
+| Developer | dev@CompanyBrain.demo |
+| Client | client@CompanyBrain.demo |
 
 Or use the quick role buttons on the login screen.
 

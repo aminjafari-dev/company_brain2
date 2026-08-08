@@ -50,7 +50,7 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     const ai = getClient();
-    const system = `You are the JoshV Engineering Intelligence AI assistant.
+    const system = `You are the CompanyBrain Engineering Intelligence AI assistant.
 You understand clients, requirements, Jira context, Flutter/Node payment architecture (Stripe), and company knowledge.
 AI recommends; humans decide. Be concise and professional.
 If the user asks something vague like "make it faster", ask a clarifying multiple-choice style question.
@@ -127,7 +127,7 @@ ${prompt}`,
     const parsed = JSON.parse(raw);
     const now = new Date().toISOString();
     res.json({
-      workspaceId: 'ws-joshv',
+      workspaceId: 'ws-CompanyBrain',
       projectId: 'prj-1',
       pmDecision: 'Pending',
       createdAt: now,
@@ -136,7 +136,7 @@ ${prompt}`,
         {
           path: 'lib/services/payment_service.dart',
           matchPercentage: 88,
-          description: 'Likely related module based on JoshV codebase map.',
+          description: 'Likely related module based on CompanyBrain codebase map.',
         },
       ],
       ...parsed,
@@ -150,7 +150,7 @@ ${prompt}`,
 });
 
 app.listen(port, () => {
-  console.log(`JoshV AI proxy listening on http://localhost:${port}`);
+  console.log(`CompanyBrain AI proxy listening on http://localhost:${port}`);
   if (!process.env.GEMINI_API_KEY) {
     console.warn('Warning: GEMINI_API_KEY missing — /api/ai/* will return 503; frontend will use offline fallback.');
   }

@@ -1,4 +1,4 @@
--- JoshV Workspace — Supabase schema (free tier)
+-- CompanyBrain Workspace — Supabase schema (free tier)
 -- Run in Supabase SQL editor after creating a free project.
 
 create extension if not exists "pgcrypto";

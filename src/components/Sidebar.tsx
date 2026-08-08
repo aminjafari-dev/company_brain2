@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <div className="overflow-hidden">
           <h1 className="font-semibold text-[15px] text-[#191c1e] leading-tight truncate">
-            JoshV Workspace
+            CompanyBrain Workspace
           </h1>
           <p className="text-[12px] text-[#45464d] font-medium truncate">
             Engineering Intelligence
@@ -131,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <img
             src={
               user?.avatarUrl ||
-              'https://i.pravatar.cc/100?u=joshv'
+              'https://i.pravatar.cc/100?u=CompanyBrain'
             }
             alt="User Avatar"
             className="w-5 h-5 rounded-full object-cover border border-[#c6c6cd]"

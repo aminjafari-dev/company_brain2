@@ -1,6 +1,6 @@
 import type { AppDatabase } from '../types';
 
-export const WORKSPACE_ID = 'ws-joshv';
+export const WORKSPACE_ID = 'ws-CompanyBrain';
 export const DEMO_PASSWORD = 'demo1234';
 
 export function createSeedDatabase(): AppDatabase {
@@ -10,13 +10,13 @@ export function createSeedDatabase(): AppDatabase {
     version: 1,
     workspace: {
       id: WORKSPACE_ID,
-      name: 'JoshV',
-      slug: 'joshv',
+      name: 'CompanyBrain',
+      slug: 'CompanyBrain',
     },
     users: [
       {
         id: 'user-admin',
-        email: 'admin@joshv.demo',
+        email: 'admin@CompanyBrain.demo',
         displayName: 'Josh V',
         role: 'admin',
         workspaceId: WORKSPACE_ID,
@@ -24,7 +24,7 @@ export function createSeedDatabase(): AppDatabase {
       },
       {
         id: 'user-pm',
-        email: 'pm@joshv.demo',
+        email: 'pm@CompanyBrain.demo',
         displayName: 'Amin Jafari',
         role: 'pm',
         workspaceId: WORKSPACE_ID,
@@ -32,7 +32,7 @@ export function createSeedDatabase(): AppDatabase {
       },
       {
         id: 'user-dev',
-        email: 'dev@joshv.demo',
+        email: 'dev@CompanyBrain.demo',
         displayName: 'Sara Chen',
         role: 'developer',
         workspaceId: WORKSPACE_ID,
@@ -40,7 +40,7 @@ export function createSeedDatabase(): AppDatabase {
       },
       {
         id: 'user-client',
-        email: 'client@joshv.demo',
+        email: 'client@CompanyBrain.demo',
         displayName: 'Alex Rivera',
         role: 'client',
         workspaceId: WORKSPACE_ID,
@@ -52,7 +52,7 @@ export function createSeedDatabase(): AppDatabase {
         id: 'prj-1',
         workspaceId: WORKSPACE_ID,
         name: 'Mobile Checkout Refactor',
-        repo: 'joshv/checkout-flutter',
+        repo: 'CompanyBrain/checkout-flutter',
         status: 'Active Sprint',
         progress: 78,
         lead: 'Amin Jafari',
@@ -63,7 +63,7 @@ export function createSeedDatabase(): AppDatabase {
         id: 'prj-2',
         workspaceId: WORKSPACE_ID,
         name: 'Payment Gateway Node Microservice',
-        repo: 'joshv/payment-service-node',
+        repo: 'CompanyBrain/payment-service-node',
         status: 'In Review',
         progress: 92,
         lead: 'Josh V',
@@ -74,7 +74,7 @@ export function createSeedDatabase(): AppDatabase {
         id: 'prj-3',
         workspaceId: WORKSPACE_ID,
         name: 'Intelligence Indexing Engine',
-        repo: 'joshv/knowledge-vector-db',
+        repo: 'CompanyBrain/knowledge-vector-db',
         status: 'Active',
         progress: 64,
         lead: 'AI Agent',
@@ -441,7 +441,7 @@ export function createSeedDatabase(): AppDatabase {
         id: 'msg-1',
         conversationId: 'conv-1',
         sender: 'user',
-        text: 'How would we implement Apple Pay for JoshV?',
+        text: 'How would we implement Apple Pay for CompanyBrain?',
         timestamp: '10:42 AM',
       },
       {
@@ -637,7 +637,7 @@ export function createSeedDatabase(): AppDatabase {
         workspaceId: WORKSPACE_ID,
         actor: 'System',
         action: 'synced repository',
-        target: 'joshv/checkout-flutter',
+        target: 'CompanyBrain/checkout-flutter',
         detail: '428 files indexed',
         createdAt: now,
       },

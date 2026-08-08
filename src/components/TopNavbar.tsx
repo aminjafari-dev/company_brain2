@@ -58,7 +58,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onSearchClick, onDeploy, o
           </button>
 
           <button
-            onClick={() => alert("JoshV Workspace Assistance: Click 'AI Assistant' on the left to ask questions about your codebase, architecture, and Jira issues.")}
+            onClick={() => alert("CompanyBrain Workspace Assistance: Click 'AI Assistant' on the left to ask questions about your codebase, architecture, and Jira issues.")}
             className="p-1.5 hover:text-[#000000] hover:bg-[#f2f4f6] rounded transition-colors cursor-pointer"
             title="Help"
           >

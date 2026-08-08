@@ -24,7 +24,7 @@ function offlineReply(prompt: string): AIChatResponse {
   if (lower.includes('apple pay')) {
     return {
       state: 'ready',
-      text: 'Based on the JoshV payment architecture (Stripe), Apple Pay needs Flutter checkout UI updates and Node PaymentIntent configuration. Google Pay patterns already exist and can be reused.',
+      text: 'Based on the CompanyBrain payment architecture (Stripe), Apple Pay needs Flutter checkout UI updates and Node PaymentIntent configuration. Google Pay patterns already exist and can be reused.',
       analysisCard: {
         title: 'Apple Pay Integration Analysis',
         status: 'Draft',
@@ -44,7 +44,7 @@ function offlineReply(prompt: string): AIChatResponse {
   }
   return {
     state: 'ready',
-    text: `I analyzed "${prompt}" against JoshV knowledge (checkout, payments, orders, notifications). No blocking architectural conflicts were found. I can create a structured request when you are ready.`,
+    text: `I analyzed "${prompt}" against CompanyBrain knowledge (checkout, payments, orders, notifications). No blocking architectural conflicts were found. I can create a structured request when you are ready.`,
   };
 }
 
@@ -91,13 +91,13 @@ export async function analyzeRequirement(promptText: string): Promise<FeatureReq
   const now = new Date().toISOString();
   return {
     id: newReqId,
-    workspaceId: 'ws-joshv',
+    workspaceId: 'ws-CompanyBrain',
     projectId: 'prj-1',
     title: promptText.length > 40 ? `${promptText.slice(0, 40)}...` : promptText,
     subtitle: promptText,
     status: 'AI Analyzed',
     confidence: 92,
-    objective: `Integrate ${promptText} into the existing JoshV application architecture.`,
+    objective: `Integrate ${promptText} into the existing CompanyBrain application architecture.`,
     businessGoal: 'Improve conversion and reduce manual support work.',
     productContext: [
       'REST backend services are in production.',

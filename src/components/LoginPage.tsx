@@ -5,15 +5,15 @@ import { DEMO_PASSWORD } from '../data/seed';
 import { isSupabaseConfigured } from '../lib/config';
 
 const roles: { role: UserRole; label: string; email: string }[] = [
-  { role: 'admin', label: 'Admin', email: 'admin@joshv.demo' },
-  { role: 'pm', label: 'Product Manager', email: 'pm@joshv.demo' },
-  { role: 'developer', label: 'Developer', email: 'dev@joshv.demo' },
-  { role: 'client', label: 'Client', email: 'client@joshv.demo' },
+  { role: 'admin', label: 'Admin', email: 'admin@CompanyBrain.demo' },
+  { role: 'pm', label: 'Product Manager', email: 'pm@CompanyBrain.demo' },
+  { role: 'developer', label: 'Developer', email: 'dev@CompanyBrain.demo' },
+  { role: 'client', label: 'Client', email: 'client@CompanyBrain.demo' },
 ];
 
 export const LoginPage: React.FC = () => {
   const { login, loginAsRole, error, loading } = useAuthStore();
-  const [email, setEmail] = useState('pm@joshv.demo');
+  const [email, setEmail] = useState('pm@CompanyBrain.demo');
   const [password, setPassword] = useState(DEMO_PASSWORD);
   const [submitting, setSubmitting] = useState(false);
 
@@ -37,7 +37,7 @@ export const LoginPage: React.FC = () => {
             JV
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-[#191c1e]">JoshV Workspace</h1>
+            <h1 className="text-xl font-semibold text-[#191c1e]">CompanyBrain Workspace</h1>
             <p className="text-sm text-[#45464d]">Engineering Intelligence</p>
           </div>
         </div>

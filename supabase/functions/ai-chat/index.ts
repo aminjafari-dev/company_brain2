@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       ],
       config: {
         systemInstruction:
-          'You are JoshV Engineering Intelligence AI. AI recommends; humans decide.',
+          'You are CompanyBrain Engineering Intelligence AI. AI recommends; humans decide.',
       },
     });
 

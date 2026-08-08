@@ -126,7 +126,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         </div>
 
         <div className="p-2.5 bg-[#f7f9fb] border-t border-[#c6c6cd] text-[12px] text-[#76777d] flex justify-between items-center">
-          <span>JoshV Engineering Intelligence Search</span>
+          <span>CompanyBrain Engineering Intelligence Search</span>
           <span>⌘K</span>
         </div>
       </div>

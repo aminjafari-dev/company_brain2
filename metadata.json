@@ -1,5 +1,5 @@
 {
-  "name": "JoshV Workspace",
+  "name": "CompanyBrain Workspace",
   "description": "Engineering Intelligence platform with AI Request Analysis, Knowledge Base, PM Reviews, and AI Assistant.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
