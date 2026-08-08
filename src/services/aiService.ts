@@ -1,50 +1,175 @@
 import { config } from '../lib/config';
-import type { ChatMessage, FeatureRequest } from '../types';
+import type {
+  ChatAgentState,
+  ChatMessage,
+  DraftTask,
+  FeatureRequest,
+} from '../types';
 import { getRepository } from './dataProvider';
 
 export type AIAgentState =
   | 'idle'
   | 'thinking'
   | 'asking_question'
+  | 'ready_to_finalize'
   | 'analyzing'
   | 'searching_knowledge'
   | 'analyzing_code'
   | 'generating_requirement'
   | 'ready'
+  | 'finalized'
   | 'error';
 
 export interface AIChatResponse {
   text: string;
   analysisCard?: ChatMessage['analysisCard'];
   state: AIAgentState;
+  draftTask?: DraftTask;
 }
 
-function offlineReply(prompt: string): AIChatResponse {
+function parseChatPayload(raw: unknown): AIChatResponse | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  if (typeof data.text !== 'string') return null;
+
+  const state = (typeof data.state === 'string' ? data.state : 'ready') as AIAgentState;
+  let draftTask: DraftTask | undefined;
+  const draft = data.draftTask;
+  if (draft && typeof draft === 'object') {
+    const d = draft as Record<string, unknown>;
+    if (typeof d.title === 'string' && typeof d.summary === 'string') {
+      const effort =
+        d.effort === 'Low' || d.effort === 'Medium' || d.effort === 'High'
+          ? d.effort
+          : 'Medium';
+      draftTask = {
+        title: d.title,
+        summary: d.summary,
+        acceptanceCriteria: Array.isArray(d.acceptanceCriteria)
+          ? d.acceptanceCriteria.filter((c): c is string => typeof c === 'string')
+          : [],
+        effort,
+      };
+    }
+  }
+
+  return {
+    text: data.text,
+    state,
+    draftTask,
+    analysisCard: data.analysisCard as ChatMessage['analysisCard'] | undefined,
+  };
+}
+
+function buildDraftFromConversation(
+  prompt: string,
+  history: { role: 'user' | 'model'; text: string }[]
+): DraftTask {
+  const userBits = [
+    ...history.filter((h) => h.role === 'user').map((h) => h.text),
+    prompt,
+  ];
+  const joined = userBits.join(' ').trim();
+  const title =
+    joined.length > 60 ? `${joined.slice(0, 57).trim()}...` : joined || 'New client request';
+  return {
+    title,
+    summary: joined || prompt,
+    acceptanceCriteria: [
+      'Behavior matches the agreed client description.',
+      'Works on the platforms discussed with the client.',
+      'Errors and empty states show clear user messaging.',
+    ],
+    effort: 'Medium',
+  };
+}
+
+function offlineReply(
+  prompt: string,
+  history: { role: 'user' | 'model'; text: string }[] = []
+): AIChatResponse {
   const lower = prompt.toLowerCase();
-  if (lower.includes('apple pay')) {
+  const userTurns =
+    history.filter((h) => h.role === 'user').length + 1;
+  const conversationText = [
+    ...history.map((h) => h.text),
+    prompt,
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  const hasActor =
+    /\b(user|customer|client|admin|buyer|guest|i want|we need)\b/.test(
+      conversationText
+    );
+  const hasPlatform =
+    /\b(ios|android|web|mobile|flutter|desktop|app)\b/.test(conversationText);
+  const hasGoal =
+    /\b(pay|payment|checkout|login|search|notif|faster|integrat|add|support|enable)\b/.test(
+      conversationText
+    );
+
+  // Enough detail after a few turns, or a rich single message
+  if (
+    (userTurns >= 3 && hasGoal) ||
+    (userTurns >= 2 && hasGoal && (hasActor || hasPlatform)) ||
+    (hasGoal && hasPlatform && prompt.length > 40)
+  ) {
+    const draftTask = buildDraftFromConversation(prompt, history);
+    if (lower.includes('apple pay') || conversationText.includes('apple pay')) {
+      draftTask.title = 'Add Apple Pay to checkout';
+      draftTask.summary =
+        'Enable Apple Pay in Flutter checkout using existing Stripe PaymentIntent flow.';
+      draftTask.acceptanceCriteria = [
+        'Apple Pay button appears on iOS checkout when available.',
+        'Successful payment creates an order and shows confirmation.',
+        'Declined or cancelled payments show a clear error state.',
+      ];
+      draftTask.effort = 'Medium';
+    }
     return {
-      state: 'ready',
-      text: 'Based on the CompanyBrain payment architecture (Stripe), Apple Pay needs Flutter checkout UI updates and Node PaymentIntent configuration. Google Pay patterns already exist and can be reused.',
-      analysisCard: {
-        title: 'Apple Pay Integration Analysis',
-        status: 'Draft',
-        summary:
-          'Reuse Stripe SDK; add ApplePayButton; configure PaymentIntent for Apple Pay on the backend.',
-        affectedSystems: ['Flutter App (iOS)', 'Payment Service (Node.js)'],
-        relatedJira: 'JIRA-284',
-        estComplexity: 'Medium',
-      },
+      state: 'ready_to_finalize',
+      text: 'I have enough detail to create a Jira task. Please review the draft below and confirm to write it to Jira.',
+      draftTask,
     };
   }
-  if (lower.includes('faster') || lower.includes('performance')) {
+
+  if (lower.includes('faster') || lower.includes('performance') || userTurns === 1) {
+    if (userTurns === 1 && !hasPlatform) {
+      return {
+        state: 'asking_question',
+        text: 'Got it. Which platform should this cover — iOS, Android, web, or all of them?',
+      };
+    }
+    if (!hasActor) {
+      return {
+        state: 'asking_question',
+        text: 'Who is the main user for this — end customers, admins, or internal staff?',
+      };
+    }
     return {
       state: 'asking_question',
-      text: 'What part of the application are you referring to? App startup, navigation, checkout, data loading, or something else?',
+      text: 'What should happen when it succeeds, and what should the user see if it fails?',
     };
   }
+
+  if (!hasPlatform) {
+    return {
+      state: 'asking_question',
+      text: 'Which platform should this cover — iOS, Android, web, or all of them?',
+    };
+  }
+
+  if (!hasActor) {
+    return {
+      state: 'asking_question',
+      text: 'Who is the main user for this — end customers, admins, or internal staff?',
+    };
+  }
+
   return {
-    state: 'ready',
-    text: `I analyzed "${prompt}" against CompanyBrain knowledge (checkout, payments, orders, notifications). No blocking architectural conflicts were found. I can create a structured request when you are ready.`,
+    state: 'asking_question',
+    text: 'What should the finished behavior look like for the user, including any edge cases?',
   };
 }
 
@@ -53,6 +178,7 @@ export async function chatWithAI(params: {
   conversationId: string;
   history?: { role: 'user' | 'model'; text: string }[];
 }): Promise<AIChatResponse> {
+  const history = params.history ?? [];
   try {
     const settings = await getRepository().getSettings();
     const res = await fetch(`${config.aiProxyUrl}/api/ai/chat`, {
@@ -60,15 +186,21 @@ export async function chatWithAI(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt: params.prompt,
-        history: params.history ?? [],
+        history,
         model: settings.geminiModel,
       }),
     });
     if (!res.ok) throw new Error(`AI proxy ${res.status}`);
-    const data = (await res.json()) as AIChatResponse;
-    return data;
+    const data = (await res.json()) as unknown;
+    const parsed = parseChatPayload(data);
+    if (!parsed) throw new Error('Invalid AI chat payload');
+    // Normalize ready_to_finalize without draft
+    if (parsed.state === 'ready_to_finalize' && !parsed.draftTask) {
+      parsed.draftTask = buildDraftFromConversation(params.prompt, history);
+    }
+    return parsed;
   } catch {
-    return offlineReply(params.prompt);
+    return offlineReply(params.prompt, history);
   }
 }
 
@@ -173,3 +305,5 @@ export async function analyzeRequirement(promptText: string): Promise<FeatureReq
     updatedAt: now,
   };
 }
+
+export type { ChatAgentState };

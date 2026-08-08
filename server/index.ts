@@ -1,10 +1,14 @@
 /**
- * Local Gemini AI proxy — keeps GEMINI_API_KEY off the browser.
+ * Local Gemini AI + Jira proxy — keeps API keys off the browser.
  * Free MVP: run with `npm run ai-server` alongside Vite.
  */
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
+import { createJiraIssue, isJiraConfigured } from './jira';
+
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env.local', override: true });
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -27,6 +31,8 @@ app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    jiraConfigured: isJiraConfigured(),
+    jiraProjectKey: process.env.JIRA_PROJECT_KEY || null,
     model: modelDefault,
   });
 });
@@ -50,11 +56,29 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     const ai = getClient();
-    const system = `You are the CompanyBrain Engineering Intelligence AI assistant.
-You understand clients, requirements, Jira context, Flutter/Node payment architecture (Stripe), and company knowledge.
-AI recommends; humans decide. Be concise and professional.
-If the user asks something vague like "make it faster", ask a clarifying multiple-choice style question.
-When discussing Apple Pay / payments, mention affected systems and complexity.`;
+    const system = `You are CompanyBrain's client intake agent.
+Your job: talk with the client, ask clarifying questions, then finalize ONE development task for Jira.
+
+Rules:
+- Ask exactly ONE clear question at a time when information is missing.
+- Cover: who the user is, goal, platform (iOS/Android/web), expected behavior, and constraints/edge cases.
+- Be concise and professional. Do not invent unrelated features.
+- When you have enough detail to write a concrete task, set state to "ready_to_finalize" and fill draftTask.
+- Otherwise set state to "asking_question".
+- Use state "ready" only for general Q&A that is not a new work request.
+
+Return ONLY valid JSON (no markdown) with this shape:
+{
+  "state": "asking_question" | "ready_to_finalize" | "ready",
+  "text": "message shown to the client",
+  "draftTask": {
+    "title": "short Jira summary",
+    "summary": "1-3 sentence description",
+    "acceptanceCriteria": ["criterion 1", "criterion 2"],
+    "effort": "Low" | "Medium" | "High"
+  }
+}
+Omit draftTask unless state is "ready_to_finalize".`;
 
     const contents = [
       ...history.map((h) => ({
@@ -69,27 +93,55 @@ When discussing Apple Pay / payments, mention affected systems and complexity.`;
       contents,
       config: {
         systemInstruction: system,
+        responseMimeType: 'application/json',
       },
     });
 
-    const text = response.text || 'I could not generate a response.';
-    const lower = prompt.toLowerCase();
-    const analysisCard =
-      lower.includes('apple pay') || lower.includes('payment')
+    const raw = response.text || '{}';
+    let parsed: {
+      state?: string;
+      text?: string;
+      draftTask?: {
+        title?: string;
+        summary?: string;
+        acceptanceCriteria?: string[];
+        effort?: string;
+      };
+    };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = { state: 'ready', text: raw };
+    }
+
+    const state =
+      parsed.state === 'asking_question' ||
+      parsed.state === 'ready_to_finalize' ||
+      parsed.state === 'ready'
+        ? parsed.state
+        : 'ready';
+
+    const draft =
+      state === 'ready_to_finalize' && parsed.draftTask?.title
         ? {
-            title: 'Technical impact draft',
-            status: 'Draft',
-            summary: text.slice(0, 220),
-            affectedSystems: ['Flutter checkout', 'Payment Service (Node.js)', 'Stripe'],
-            relatedJira: 'JIRA-284',
-            estComplexity: 'Medium',
+            title: parsed.draftTask.title,
+            summary: parsed.draftTask.summary || parsed.draftTask.title,
+            acceptanceCriteria: Array.isArray(parsed.draftTask.acceptanceCriteria)
+              ? parsed.draftTask.acceptanceCriteria
+              : [],
+            effort:
+              parsed.draftTask.effort === 'Low' ||
+              parsed.draftTask.effort === 'Medium' ||
+              parsed.draftTask.effort === 'High'
+                ? parsed.draftTask.effort
+                : 'Medium',
           }
         : undefined;
 
     res.json({
-      text,
-      analysisCard,
-      state: lower.includes('faster') ? 'asking_question' : 'ready',
+      text: parsed.text || 'I could not generate a response.',
+      state,
+      draftTask: draft,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'AI error';
@@ -149,9 +201,44 @@ ${prompt}`,
   }
 });
 
+app.post('/api/jira/issues', async (req, res) => {
+  try {
+    const { title, summary, acceptanceCriteria, effort, issueType } = req.body as {
+      title?: string;
+      summary?: string;
+      acceptanceCriteria?: string[];
+      effort?: string;
+      issueType?: string;
+    };
+    if (!title?.trim()) {
+      res.status(400).json({ error: 'title required' });
+      return;
+    }
+    const issue = await createJiraIssue({
+      title: title.trim(),
+      summary: (summary || title).trim(),
+      acceptanceCriteria: Array.isArray(acceptanceCriteria) ? acceptanceCriteria : [],
+      effort,
+      issueType,
+    });
+    res.status(201).json(issue);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Jira error';
+    const status = message.includes('not configured') ? 503 : 502;
+    res.status(status).json({ error: message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`CompanyBrain AI proxy listening on http://localhost:${port}`);
   if (!process.env.GEMINI_API_KEY) {
     console.warn('Warning: GEMINI_API_KEY missing — /api/ai/* will return 503; frontend will use offline fallback.');
+  }
+  if (!isJiraConfigured()) {
+    console.warn(
+      'Warning: Jira not configured — set JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY for real issue creation.'
+    );
+  } else {
+    console.log(`Jira configured for project ${process.env.JIRA_PROJECT_KEY}`);
   }
 });

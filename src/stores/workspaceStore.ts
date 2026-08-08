@@ -5,6 +5,7 @@ import type {
   CodeFile,
   ConnectedSource,
   DevelopmentTask,
+  DraftTask,
   FeatureRequest,
   Integration,
   JiraIssue,
@@ -57,6 +58,11 @@ interface WorkspaceState {
   requestMoreInfo: (id: string, actor: string) => Promise<void>;
   createJiraTasks: (id: string, actor: string) => Promise<void>;
   sendChat: (userId: string, text: string, actor: string) => Promise<void>;
+  finalizeChatTask: (
+    userId: string,
+    actor: string,
+    draftTask: DraftTask
+  ) => Promise<{ jiraKey: string; requestId: string; jiraUrl?: string }>;
   toggleIntegration: (id: string) => Promise<void>;
   saveSettings: (settings: WorkspaceSettings) => Promise<void>;
   resetDemo: (userId: string) => Promise<void>;
@@ -203,6 +209,39 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   sendChat: async (userId, text, actor) => {
     const { userMsg, aiMsg } = await AIChatService.send(userId, text, actor);
     set({ messages: [...get().messages, userMsg, aiMsg] });
+  },
+  finalizeChatTask: async (userId, actor, draftTask) => {
+    try {
+      const { request, issue, confirmMsg, jiraUrl } = await AIChatService.finalizeToJira(
+        userId,
+        actor,
+        draftTask
+      );
+      const [requests, metrics, jiraIssues, activity, messages] = await Promise.all([
+        RequestService.list(),
+        RequestService.metrics(),
+        JiraService.list(),
+        ActivityService.list(),
+        AIChatService.listMessages(userId),
+      ]);
+      set({
+        requests,
+        metrics,
+        jiraIssues,
+        activity,
+        messages,
+        selectedRequestId: request.id,
+      });
+      get().showToast(`${issue.key} created in real Jira`);
+      if (!messages.some((m) => m.id === confirmMsg.id)) {
+        set({ messages: [...get().messages, confirmMsg] });
+      }
+      return { jiraKey: issue.key, requestId: request.id, jiraUrl };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to create Jira issue';
+      get().showToast(message);
+      throw e;
+    }
   },
   toggleIntegration: async (id) => {
     await IntegrationService.toggle(id);

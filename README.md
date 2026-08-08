@@ -14,9 +14,16 @@ React + Vite app that turns the static AI Studio demo into a **dynamic** product
 2. `npm install`
 3. Copy env: `cp .env.example .env.local`
 4. (Optional) set `GEMINI_API_KEY` in `.env.local` for live AI
-5. In one terminal: `npm run ai-server`
-6. In another: `npm run dev`
-7. Open http://localhost:3000
+5. For **real Jira** creates (Byto.Tech / `KAN`), set in `.env.local`:
+   - `JIRA_BASE_URL=https://your-site.atlassian.net`
+   - `JIRA_EMAIL=your@email.com`
+   - `JIRA_API_TOKEN=` from https://id.atlassian.com/manage-profile/security/api-tokens
+   - `JIRA_PROJECT_KEY=KAN`
+6. In one terminal: `npm run ai-server`
+7. In another: `npm run dev`
+8. Open http://localhost:3000
+
+AI Assistant → clarify with client → **Create on Jira** writes a real Task to your Atlassian project (requires ai-server + Jira env).
 
 ### Demo login (local mode)
 

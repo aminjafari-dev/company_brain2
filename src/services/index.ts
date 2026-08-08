@@ -1,4 +1,6 @@
 import type {
+  ChatAgentState,
+  DraftTask,
   FeatureRequest,
   JiraIssue,
   OverviewMetrics,
@@ -7,6 +9,7 @@ import type {
 import { analyzeRequirement, chatWithAI } from './aiService';
 import { getRepository } from './dataProvider';
 import { WORKSPACE_ID } from '../data/seed';
+import { config } from '../lib/config';
 
 export const RequestService = {
   list: () => getRepository().listRequests(),
@@ -149,6 +152,8 @@ export const AIChatService = {
       text: ai.text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       analysisCard: ai.analysisCard,
+      state: ai.state as ChatAgentState,
+      draftTask: ai.draftTask,
     };
     await repo.appendMessages([aiMsg]);
     await repo.appendActivity({
@@ -160,6 +165,143 @@ export const AIChatService = {
     });
     return { userMsg, aiMsg, state: ai.state };
   },
+
+  async finalizeToJira(userId: string, actorName: string, draftTask: DraftTask) {
+    const repo = getRepository();
+    const conversation = await repo.getOrCreateConversation(userId);
+    const now = new Date().toISOString();
+    const reqId = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // Create in real Atlassian Jira first — do not fall back to a fake key.
+    // Prefer same-origin /api (Vite middleware) so this works with only npm run dev.
+    const jiraEndpoint = `${config.aiProxyUrl}/api/jira/issues`;
+    let jiraRes: Response;
+    try {
+      jiraRes = await fetch(jiraEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: draftTask.title,
+          summary: draftTask.summary,
+          acceptanceCriteria: draftTask.acceptanceCriteria,
+          effort: draftTask.effort,
+          issueType: 'Task',
+        }),
+      });
+    } catch {
+      throw new Error(
+        'Could not reach the Jira API. Restart npm run dev after setting JIRA_* in .env.local (Create on Jira no longer needs a separate ai-server).'
+      );
+    }
+    const jiraBody = (await jiraRes.json().catch(() => ({}))) as {
+      id?: string;
+      key?: string;
+      browseUrl?: string;
+      error?: string;
+    };
+    if (!jiraRes.ok || !jiraBody.key) {
+      throw new Error(
+        jiraBody.error ||
+          `Failed to create real Jira issue (${jiraRes.status}). Check JIRA_* env vars and restart npm run dev.`
+      );
+    }
+
+    const jiraKey = jiraBody.key;
+    if (!jiraBody.browseUrl) {
+      throw new Error('Jira API did not return a browse URL');
+    }
+    const jiraUrl = jiraBody.browseUrl;
+
+    const request: FeatureRequest = {
+      id: reqId,
+      workspaceId: WORKSPACE_ID,
+      projectId: 'prj-1',
+      title: draftTask.title,
+      subtitle: draftTask.summary,
+      status: 'Development Planning',
+      confidence: 90,
+      objective: draftTask.summary,
+      businessGoal: draftTask.summary,
+      businessRequirements: draftTask.summary,
+      acceptanceCriteria: draftTask.acceptanceCriteria.map((text, index) => ({
+        id: String(index + 1),
+        text,
+        completed: false,
+      })),
+      technicalImpactSummary: draftTask.summary,
+      aiRecommendation: {
+        title: 'Created from client AI intake',
+        description: 'Client confirmed the draft; task written to real Jira.',
+      },
+      devPlan: [
+        {
+          seq: '01',
+          component: 'Delivery',
+          task: draftTask.title,
+          effort: draftTask.effort,
+          jiraCreated: true,
+        },
+      ],
+      pmDecision: 'Approved',
+      jiraKey,
+      completeness: {
+        businessRequirement: true,
+        userActor: true,
+        goal: true,
+        expectedBehavior: true,
+        platform: true,
+        acceptanceCriteria: draftTask.acceptanceCriteria.length > 0,
+        edgeCases: false,
+        score: 85,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await repo.upsertRequest(request);
+
+    const issue: JiraIssue = {
+      id: jiraBody.id || `ji-chat-${Date.now()}`,
+      workspaceId: WORKSPACE_ID,
+      key: jiraKey,
+      summary: draftTask.title,
+      status: 'To Do',
+      assignee: 'Unassigned',
+      type: 'Task',
+      linkedReq: reqId,
+    };
+    await repo.upsertJiraIssues([issue]);
+
+    const confirmMsg = {
+      id: `msg-${Date.now() + 2}`,
+      conversationId: conversation.id,
+      sender: 'ai' as const,
+      text: `Done. I created ${jiraKey} in your real Jira project for "${draftTask.title}" (linked to ${reqId}).`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      state: 'finalized' as const,
+      jiraKey,
+      jiraUrl,
+      analysisCard: {
+        title: draftTask.title,
+        status: 'Created',
+        summary: draftTask.summary,
+        affectedSystems: [],
+        relatedJira: jiraKey,
+        estComplexity: draftTask.effort,
+      },
+    };
+    await repo.appendMessages([confirmMsg]);
+    await repo.appendActivity({
+      workspaceId: WORKSPACE_ID,
+      actor: actorName,
+      action: 'created real Jira issue from AI chat',
+      target: jiraKey,
+      detail: `${reqId}: ${draftTask.title}`,
+    });
+
+    return { request, issue, confirmMsg, jiraUrl };
+  },
+
   listMessages: async (userId: string) => {
     const conv = await getRepository().getOrCreateConversation(userId);
     return getRepository().listMessages(conv.id);

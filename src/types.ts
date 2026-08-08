@@ -150,12 +150,30 @@ export interface KnowledgeCategory {
   documentCount: number;
 }
 
+export interface DraftTask {
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  effort: 'Low' | 'Medium' | 'High';
+}
+
+export type ChatAgentState =
+  | 'asking_question'
+  | 'ready_to_finalize'
+  | 'ready'
+  | 'finalized'
+  | 'error';
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
   sender: 'user' | 'ai';
   text: string;
   timestamp: string;
+  state?: ChatAgentState;
+  draftTask?: DraftTask;
+  jiraKey?: string;
+  jiraUrl?: string;
   analysisCard?: {
     title: string;
     status: string;

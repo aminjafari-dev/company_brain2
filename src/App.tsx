@@ -189,6 +189,10 @@ function AppShell() {
                     if (!user) return;
                     await store.sendChat(user.id, text, user.displayName);
                   }}
+                  onFinalizeToJira={async (draftTask) => {
+                    if (!user) return;
+                    await store.finalizeChatTask(user.id, user.displayName, draftTask);
+                  }}
                   onNavigateTab={setActiveTab}
                   onOpenDependencyGraph={() => ui.setDependencyGraphOpen(true)}
                 />
