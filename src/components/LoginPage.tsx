@@ -5,15 +5,15 @@ import { DEMO_PASSWORD } from '../data/seed';
 import { isSupabaseConfigured } from '../lib/config';
 
 const roles: { role: UserRole; label: string; email: string }[] = [
-  { role: 'admin', label: 'Admin', email: 'admin@CompanyBrain.demo' },
-  { role: 'pm', label: 'Product Manager', email: 'pm@CompanyBrain.demo' },
-  { role: 'developer', label: 'Developer', email: 'dev@CompanyBrain.demo' },
-  { role: 'client', label: 'Client', email: 'client@CompanyBrain.demo' },
+  { role: 'admin', label: 'Admin', email: 'admin@companybrain.demo' },
+  { role: 'pm', label: 'Product Manager', email: 'pm@companybrain.demo' },
+  { role: 'developer', label: 'Developer', email: 'dev@companybrain.demo' },
+  { role: 'client', label: 'Client', email: 'client@companybrain.demo' },
 ];
 
 export const LoginPage: React.FC = () => {
   const { login, loginAsRole, error, loading } = useAuthStore();
-  const [email, setEmail] = useState('pm@CompanyBrain.demo');
+  const [email, setEmail] = useState('pm@companybrain.demo');
   const [password, setPassword] = useState(DEMO_PASSWORD);
   const [submitting, setSubmitting] = useState(false);
 

@@ -24,10 +24,10 @@ Password for all demo users: `demo1234`
 
 | Role | Email |
 |------|--------|
-| Admin | admin@CompanyBrain.demo |
-| PM | pm@CompanyBrain.demo |
-| Developer | dev@CompanyBrain.demo |
-| Client | client@CompanyBrain.demo |
+| Admin | admin@companybrain.demo |
+| PM | pm@companybrain.demo |
+| Developer | dev@companybrain.demo |
+| Client | client@companybrain.demo |
 
 Or use the quick role buttons on the login screen.
 
@@ -36,6 +36,10 @@ Data persists in **localStorage** and survives refresh. Use **Settings → Reset
 Without `GEMINI_API_KEY` / AI server, chat and analyze still work with an offline fallback.
 
 ## Optional: Supabase Free
+
+Already wired for this repo when `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` are set in `.env` / `.env.local`.
+
+To recreate on a fresh project:
 
 1. Create a free Supabase project
 2. Run SQL in `supabase/migrations/001_schema.sql` then `002_seed.sql`

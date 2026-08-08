@@ -16,7 +16,7 @@ export function createSeedDatabase(): AppDatabase {
     users: [
       {
         id: 'user-admin',
-        email: 'admin@CompanyBrain.demo',
+        email: 'admin@companybrain.demo',
         displayName: 'Josh V',
         role: 'admin',
         workspaceId: WORKSPACE_ID,
@@ -24,7 +24,7 @@ export function createSeedDatabase(): AppDatabase {
       },
       {
         id: 'user-pm',
-        email: 'pm@CompanyBrain.demo',
+        email: 'pm@companybrain.demo',
         displayName: 'Amin Jafari',
         role: 'pm',
         workspaceId: WORKSPACE_ID,
@@ -32,7 +32,7 @@ export function createSeedDatabase(): AppDatabase {
       },
       {
         id: 'user-dev',
-        email: 'dev@CompanyBrain.demo',
+        email: 'dev@companybrain.demo',
         displayName: 'Sara Chen',
         role: 'developer',
         workspaceId: WORKSPACE_ID,
@@ -40,7 +40,7 @@ export function createSeedDatabase(): AppDatabase {
       },
       {
         id: 'user-client',
-        email: 'client@CompanyBrain.demo',
+        email: 'client@companybrain.demo',
         displayName: 'Alex Rivera',
         role: 'client',
         workspaceId: WORKSPACE_ID,
