@@ -7,6 +7,7 @@ import {
   DraftTask,
   TabType,
 } from '../types';
+import { MarkdownContent } from '../components/MarkdownContent';
 
 interface AIAssistantViewProps {
   conversations: Conversation[];
@@ -601,11 +602,13 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
 
                     <div className="bg-white border border-[#c6c6cd] rounded-xl overflow-hidden shadow-2xs">
                       <div className="p-4 text-[15px] text-[#191c1e] leading-relaxed space-y-3">
-                        <p className="whitespace-pre-wrap">
-                          {msg.clarification?.intro && mode === 'clarify'
-                            ? msg.clarification.intro
-                            : msg.text}
-                        </p>
+                        <MarkdownContent
+                          content={
+                            msg.clarification?.intro && mode === 'clarify'
+                              ? msg.clarification.intro
+                              : msg.text
+                          }
+                        />
 
                         {mode === 'clarify' && msg.clarification && (
                           <>
