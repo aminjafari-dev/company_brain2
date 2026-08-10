@@ -94,7 +94,70 @@ export const localRepository: DataRepository = {
   },
 
   async listKnowledge() {
-    return delay([...loadDatabase().knowledgeCategories]);
+    const db = loadDatabase();
+    const counts = new Map<string, number>();
+    for (const doc of db.knowledgeDocuments ?? []) {
+      counts.set(doc.categoryId, (counts.get(doc.categoryId) ?? 0) + 1);
+    }
+    return delay(
+      db.knowledgeCategories.map((cat) => ({
+        ...cat,
+        documentCount: counts.get(cat.id) ?? 0,
+      }))
+    );
+  },
+
+  async listKnowledgeDocuments(categoryId) {
+    const docs = loadDatabase().knowledgeDocuments ?? [];
+    const filtered = categoryId ? docs.filter((d) => d.categoryId === categoryId) : docs;
+    return delay(
+      [...filtered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    );
+  },
+
+  async addKnowledgeDocument(input) {
+    const now = new Date().toISOString();
+    const doc = {
+      id: input.id ?? `kdoc-${Date.now()}`,
+      workspaceId: input.workspaceId,
+      categoryId: input.categoryId,
+      title: input.title,
+      notes: input.notes,
+      fileName: input.fileName,
+      fileType: input.fileType,
+      fileSize: input.fileSize,
+      content: input.content,
+      createdAt: now,
+      updatedAt: now,
+    };
+    updateDatabase((db) => {
+      if (!db.knowledgeDocuments) db.knowledgeDocuments = [];
+      db.knowledgeDocuments.unshift(doc);
+      const cat = db.knowledgeCategories.find((c) => c.id === doc.categoryId);
+      if (cat) {
+        cat.documentCount = db.knowledgeDocuments.filter(
+          (d) => d.categoryId === doc.categoryId
+        ).length;
+      }
+    });
+    return delay(doc);
+  },
+
+  async deleteKnowledgeDocument(id) {
+    updateDatabase((db) => {
+      if (!db.knowledgeDocuments) db.knowledgeDocuments = [];
+      const existing = db.knowledgeDocuments.find((d) => d.id === id);
+      db.knowledgeDocuments = db.knowledgeDocuments.filter((d) => d.id !== id);
+      if (existing) {
+        const cat = db.knowledgeCategories.find((c) => c.id === existing.categoryId);
+        if (cat) {
+          cat.documentCount = db.knowledgeDocuments.filter(
+            (d) => d.categoryId === existing.categoryId
+          ).length;
+        }
+      }
+    });
+    await delay(undefined);
   },
 
   async getOrCreateConversation(userId) {

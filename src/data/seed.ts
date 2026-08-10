@@ -7,7 +7,7 @@ export function createSeedDatabase(): AppDatabase {
   const now = new Date().toISOString();
 
   return {
-    version: 1,
+    version: 2,
     workspace: {
       id: WORKSPACE_ID,
       name: 'CompanyBrain',
@@ -377,7 +377,7 @@ export function createSeedDatabase(): AppDatabase {
         icon: 'domain',
         description:
           'Company goals, OKRs, organizational charts, and high-level strategy documents.',
-        documentCount: 3420,
+        documentCount: 0,
       },
       {
         id: 'product',
@@ -385,7 +385,7 @@ export function createSeedDatabase(): AppDatabase {
         title: 'Product',
         icon: 'inventory_2',
         description: 'PRDs, user research, roadmaps, and feature specifications.',
-        documentCount: 5120,
+        documentCount: 0,
       },
       {
         id: 'engineering',
@@ -394,7 +394,7 @@ export function createSeedDatabase(): AppDatabase {
         icon: 'engineering',
         description:
           'Technical specs, API contracts, deployment guides, and post-mortems.',
-        documentCount: 4890,
+        documentCount: 0,
       },
       {
         id: 'architecture',
@@ -403,7 +403,7 @@ export function createSeedDatabase(): AppDatabase {
         icon: 'account_tree',
         description:
           'System design documents, ADRs, database schemas, and infrastructure diagrams.',
-        documentCount: 1840,
+        documentCount: 0,
       },
       {
         id: 'decisions',
@@ -411,7 +411,7 @@ export function createSeedDatabase(): AppDatabase {
         title: 'Decisions',
         icon: 'gavel',
         description: 'Historical context on major technical and product pivots.',
-        documentCount: 950,
+        documentCount: 0,
       },
       {
         id: 'clients',
@@ -420,50 +420,24 @@ export function createSeedDatabase(): AppDatabase {
         icon: 'group',
         description:
           'Customer feedback, integration setups, and specific client configurations.',
-        documentCount: 2200,
+        documentCount: 0,
       },
     ],
+    knowledgeDocuments: [],
     conversations: [
       {
         id: 'conv-1',
         workspaceId: WORKSPACE_ID,
         userId: 'user-pm',
         projectId: 'prj-1',
-        title: 'Apple Pay implementation',
+        title: 'New conversation',
         status: 'active',
-        relatedRequestId: 'REQ-1024',
         createdAt: now,
         updatedAt: now,
       },
     ],
-    messages: [
-      {
-        id: 'msg-1',
-        conversationId: 'conv-1',
-        sender: 'user',
-        text: 'How would we implement Apple Pay for CompanyBrain?',
-        timestamp: '10:42 AM',
-      },
-      {
-        id: 'msg-2',
-        conversationId: 'conv-1',
-        sender: 'ai',
-        text: 'Based on our current payment architecture (primarily Stripe), implementing Apple Pay requires updates across the mobile client and backend payment service. The existing Stripe integration simplifies this considerably.',
-        timestamp: '10:42 AM',
-        analysisCard: {
-          title: 'Apple Pay Integration Analysis',
-          status: 'Draft',
-          summary:
-            'Requires updating payment intent configuration on Node backend and adding ApplePayButton in Flutter checkout UI.',
-          affectedSystems: [
-            'Flutter App (iOS specific module)',
-            'Payment Service (Node.js)',
-          ],
-          relatedJira: 'JIRA-284',
-          estComplexity: 'Medium',
-        },
-      },
-    ],
+    // Keep chat empty so demo Apple Pay context cannot leak into new Jira drafts.
+    messages: [],
     jiraIssues: [
       {
         id: 'ji-1',

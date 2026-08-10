@@ -32,6 +32,13 @@ export interface DataRepository {
   listInsights(): Promise<AppDatabase['insights']>;
   listSources(): Promise<AppDatabase['sources']>;
   listKnowledge(): Promise<AppDatabase['knowledgeCategories']>;
+  listKnowledgeDocuments(categoryId?: string): Promise<AppDatabase['knowledgeDocuments']>;
+  addKnowledgeDocument(
+    doc: Omit<AppDatabase['knowledgeDocuments'][number], 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string;
+    }
+  ): Promise<AppDatabase['knowledgeDocuments'][number]>;
+  deleteKnowledgeDocument(id: string): Promise<void>;
 
   getOrCreateConversation(userId: string): Promise<Conversation>;
   listMessages(conversationId: string): Promise<ChatMessage[]>;

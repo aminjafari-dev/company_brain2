@@ -272,8 +272,10 @@ function AppShell() {
               element={
                 <KnowledgeView
                   categories={store.knowledge}
-                  sources={store.sources}
+                  documents={store.knowledgeDocuments}
                   onNavigateTab={setActiveTab}
+                  onAddDocument={(input) => store.addKnowledgeDocument(input)}
+                  onDeleteDocument={(id) => store.deleteKnowledgeDocument(id)}
                 />
               }
             />

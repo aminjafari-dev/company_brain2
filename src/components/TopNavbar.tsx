@@ -78,10 +78,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onSearchClick, onDeploy, o
                   <div className="text-[12px] text-[#45464d]">High confidence match with payment_service.dart</div>
                   <div className="text-[11px] text-[#76777d] mt-1">2 mins ago</div>
                 </div>
-                <div className="px-4 py-2.5 hover:bg-[#f2f4f6] cursor-pointer">
-                  <div className="text-[13px] font-medium text-[#191c1e]">Confluence Sync Completed</div>
-                  <div className="text-[12px] text-[#45464d]">1,240 documents updated in knowledge index</div>
-                  <div className="text-[11px] text-[#76777d] mt-1">15 mins ago</div>
+                <div className="px-4 py-2.5 hover:bg-[#f2f4f6] cursor-pointer opacity-70">
+                  <div className="text-[13px] font-medium text-[#191c1e]">External knowledge sync</div>
+                  <div className="text-[12px] text-[#45464d]">Confluence / Notion / GitHub indexing — coming soon</div>
                 </div>
               </div>
             </div>

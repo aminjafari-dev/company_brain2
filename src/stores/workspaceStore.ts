@@ -10,6 +10,7 @@ import type {
   Integration,
   JiraIssue,
   KnowledgeCategory,
+  KnowledgeDocument,
   OverviewMetrics,
   Project,
   ActivityEvent,
@@ -40,6 +41,7 @@ interface WorkspaceState {
   messages: ChatMessage[];
   sources: ConnectedSource[];
   knowledge: KnowledgeCategory[];
+  knowledgeDocuments: KnowledgeDocument[];
   jiraIssues: JiraIssue[];
   codeFiles: CodeFile[];
   developmentTasks: DevelopmentTask[];
@@ -66,6 +68,12 @@ interface WorkspaceState {
   toggleIntegration: (id: string) => Promise<void>;
   saveSettings: (settings: WorkspaceSettings) => Promise<void>;
   resetDemo: (userId: string) => Promise<void>;
+  addKnowledgeDocument: (
+    input: Omit<KnowledgeDocument, 'id' | 'createdAt' | 'updatedAt' | 'workspaceId'> & {
+      workspaceId?: string;
+    }
+  ) => Promise<void>;
+  deleteKnowledgeDocument: (id: string) => Promise<void>;
   updateDevTaskStatus: (
     id: string,
     status: DevelopmentTask['status']
@@ -83,6 +91,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   messages: [],
   sources: [],
   knowledge: [],
+  knowledgeDocuments: [],
   jiraIssues: [],
   codeFiles: [],
   developmentTasks: [],
@@ -108,6 +117,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         messages,
         sources,
         knowledge,
+        knowledgeDocuments,
         jiraIssues,
         codeFiles,
         developmentTasks,
@@ -122,6 +132,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         AIChatService.listMessages(userId),
         KnowledgeService.sources(),
         KnowledgeService.categories(),
+        KnowledgeService.documents(),
         JiraService.list(),
         CodebaseService.list(),
         DevelopmentService.list(),
@@ -137,6 +148,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         messages,
         sources,
         knowledge,
+        knowledgeDocuments,
         jiraIssues,
         codeFiles,
         developmentTasks,
@@ -260,6 +272,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     await SettingsService.resetDemo();
     await get().bootstrap(userId);
     get().showToast('Demo data reset');
+  },
+  addKnowledgeDocument: async (input) => {
+    await KnowledgeService.addDocument({
+      workspaceId: input.workspaceId ?? 'ws-CompanyBrain',
+      categoryId: input.categoryId,
+      title: input.title,
+      notes: input.notes,
+      fileName: input.fileName,
+      fileType: input.fileType,
+      fileSize: input.fileSize,
+      content: input.content,
+    });
+    const [knowledge, knowledgeDocuments] = await Promise.all([
+      KnowledgeService.categories(),
+      KnowledgeService.documents(),
+    ]);
+    set({ knowledge, knowledgeDocuments });
+    get().showToast(`Added “${input.title}” to knowledge`);
+  },
+  deleteKnowledgeDocument: async (id) => {
+    await KnowledgeService.deleteDocument(id);
+    const [knowledge, knowledgeDocuments] = await Promise.all([
+      KnowledgeService.categories(),
+      KnowledgeService.documents(),
+    ]);
+    set({ knowledge, knowledgeDocuments });
+    get().showToast('Document removed');
   },
   updateDevTaskStatus: async (id, status) => {
     const task = get().developmentTasks.find((t) => t.id === id);

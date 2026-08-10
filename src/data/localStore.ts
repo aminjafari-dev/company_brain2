@@ -3,6 +3,32 @@ import { createSeedDatabase } from './seed';
 
 const STORAGE_KEY = 'CompanyBrain-workspace-db-v1';
 const SESSION_KEY = 'CompanyBrain-workspace-session-v1';
+const CURRENT_VERSION = 2;
+
+function migrateDatabase(db: AppDatabase): AppDatabase {
+  let next = { ...db };
+
+  if (!Array.isArray(next.knowledgeDocuments)) {
+    next = { ...next, knowledgeDocuments: [] };
+  }
+
+  if (Array.isArray(next.knowledgeCategories)) {
+    const counts = new Map<string, number>();
+    for (const doc of next.knowledgeDocuments) {
+      counts.set(doc.categoryId, (counts.get(doc.categoryId) ?? 0) + 1);
+    }
+    next = {
+      ...next,
+      knowledgeCategories: next.knowledgeCategories.map((cat) => ({
+        ...cat,
+        documentCount: counts.get(cat.id) ?? 0,
+      })),
+    };
+  }
+
+  next = { ...next, version: CURRENT_VERSION };
+  return next;
+}
 
 export function loadDatabase(): AppDatabase {
   try {
@@ -17,6 +43,14 @@ export function loadDatabase(): AppDatabase {
       const seed = createSeedDatabase();
       saveDatabase(seed);
       return seed;
+    }
+    if (
+      parsed.version < CURRENT_VERSION ||
+      !Array.isArray(parsed.knowledgeDocuments)
+    ) {
+      const migrated = migrateDatabase(parsed);
+      saveDatabase(migrated);
+      return migrated;
     }
     return parsed;
   } catch {

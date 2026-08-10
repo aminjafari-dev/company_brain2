@@ -61,20 +61,69 @@ function parseChatPayload(raw: unknown): AIChatResponse | null {
   };
 }
 
+function looksLikeNewTaskRequest(text: string): boolean {
+  return /\b(create|add|build|implement|make|i need|we need|please (create|add|build)|new (task|ticket|request|page|feature))\b/i.test(
+    text.trim()
+  );
+}
+
+/** Keep only the active clarification thread so older demo topics cannot leak in. */
+export function sliceActiveHistory(
+  history: { role: 'user' | 'model'; text: string; state?: string }[],
+  prompt: string
+): { role: 'user' | 'model'; text: string }[] {
+  const normalized = history.map((h) => ({
+    role: h.role,
+    text: h.text,
+    state: h.state,
+  }));
+
+  if (looksLikeNewTaskRequest(prompt)) {
+    const lastModel = [...normalized].reverse().find((h) => h.role === 'model');
+    if (lastModel?.state !== 'asking_question') {
+      return [];
+    }
+  }
+
+  // Drop everything before the last finalized / ready_to_finalize turn
+  let start = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    const h = normalized[i];
+    if (
+      h.role === 'model' &&
+      (h.state === 'finalized' || h.state === 'ready_to_finalize')
+    ) {
+      start = i + 1;
+    }
+  }
+
+  return normalized.slice(start).map(({ role, text }) => ({ role, text }));
+}
+
+function titleFromPrompt(prompt: string): string {
+  const cleaned = prompt
+    .replace(/\b(into the jira|in jira|on jira|please|create|make a task for)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const base = cleaned || prompt.trim() || 'New client request';
+  return base.length > 80 ? `${base.slice(0, 77).trim()}...` : base;
+}
+
 function buildDraftFromConversation(
   prompt: string,
   history: { role: 'user' | 'model'; text: string }[]
 ): DraftTask {
-  const userBits = [
-    ...history.filter((h) => h.role === 'user').map((h) => h.text),
-    prompt,
-  ];
-  const joined = userBits.join(' ').trim();
-  const title =
-    joined.length > 60 ? `${joined.slice(0, 57).trim()}...` : joined || 'New client request';
+  // Latest user message is the task; prior user turns only fill in clarifications.
+  const clarifyingBits = history
+    .filter((h) => h.role === 'user')
+    .map((h) => h.text.trim())
+    .filter(Boolean);
+  const summaryParts = [...clarifyingBits, prompt.trim()].filter(Boolean);
+  const summary = summaryParts.join(' ').trim() || prompt;
+
   return {
-    title,
-    summary: joined || prompt,
+    title: titleFromPrompt(prompt),
+    summary,
     acceptanceCriteria: [
       'Behavior matches the agreed client description.',
       'Works on the platforms discussed with the client.',
@@ -89,12 +138,9 @@ function offlineReply(
   history: { role: 'user' | 'model'; text: string }[] = []
 ): AIChatResponse {
   const lower = prompt.toLowerCase();
-  const userTurns =
-    history.filter((h) => h.role === 'user').length + 1;
-  const conversationText = [
-    ...history.map((h) => h.text),
-    prompt,
-  ]
+  const userTurns = history.filter((h) => h.role === 'user').length + 1;
+  // Score readiness from the active thread only (already sliced by caller).
+  const conversationText = [...history.map((h) => h.text), prompt]
     .join(' ')
     .toLowerCase();
 
@@ -105,32 +151,23 @@ function offlineReply(
   const hasPlatform =
     /\b(ios|android|web|mobile|flutter|desktop|app)\b/.test(conversationText);
   const hasGoal =
-    /\b(pay|payment|checkout|login|search|notif|faster|integrat|add|support|enable)\b/.test(
+    /\b(pay|payment|checkout|login|search|notif|faster|integrat|add|support|enable|home|dashboard|page|feature|screen)\b/.test(
       conversationText
     );
+  const explicitCreate =
+    looksLikeNewTaskRequest(prompt) && prompt.trim().length >= 12;
 
-  // Enough detail after a few turns, or a rich single message
+  // Enough detail after a few turns, or a clear single create request
   if (
+    explicitCreate ||
     (userTurns >= 3 && hasGoal) ||
     (userTurns >= 2 && hasGoal && (hasActor || hasPlatform)) ||
     (hasGoal && hasPlatform && prompt.length > 40)
   ) {
-    const draftTask = buildDraftFromConversation(prompt, history);
-    if (lower.includes('apple pay') || conversationText.includes('apple pay')) {
-      draftTask.title = 'Add Apple Pay to checkout';
-      draftTask.summary =
-        'Enable Apple Pay in Flutter checkout using existing Stripe PaymentIntent flow.';
-      draftTask.acceptanceCriteria = [
-        'Apple Pay button appears on iOS checkout when available.',
-        'Successful payment creates an order and shows confirmation.',
-        'Declined or cancelled payments show a clear error state.',
-      ];
-      draftTask.effort = 'Medium';
-    }
     return {
       state: 'ready_to_finalize',
       text: 'I have enough detail to create a Jira task. Please review the draft below and confirm to write it to Jira.',
-      draftTask,
+      draftTask: buildDraftFromConversation(prompt, history),
     };
   }
 
@@ -176,9 +213,9 @@ function offlineReply(
 export async function chatWithAI(params: {
   prompt: string;
   conversationId: string;
-  history?: { role: 'user' | 'model'; text: string }[];
+  history?: { role: 'user' | 'model'; text: string; state?: string }[];
 }): Promise<AIChatResponse> {
-  const history = params.history ?? [];
+  const history = sliceActiveHistory(params.history ?? [], params.prompt);
   try {
     const settings = await getRepository().getSettings();
     const res = await fetch(`${config.aiProxyUrl}/api/ai/chat`, {
@@ -194,9 +231,33 @@ export async function chatWithAI(params: {
     const data = (await res.json()) as unknown;
     const parsed = parseChatPayload(data);
     if (!parsed) throw new Error('Invalid AI chat payload');
-    // Normalize ready_to_finalize without draft
-    if (parsed.state === 'ready_to_finalize' && !parsed.draftTask) {
-      parsed.draftTask = buildDraftFromConversation(params.prompt, history);
+    // Always ground the draft in the latest user request when finalizing
+    if (parsed.state === 'ready_to_finalize') {
+      const grounded = buildDraftFromConversation(params.prompt, history);
+      if (!parsed.draftTask) {
+        parsed.draftTask = grounded;
+      } else {
+        // Keep model ACs/effort when present, but never keep a title/summary
+        // that ignores the current prompt (e.g. stale Apple Pay demo context).
+        const promptTokens = params.prompt
+          .toLowerCase()
+          .split(/\W+/)
+          .filter((t) => t.length > 3);
+        const draftBlob =
+          `${parsed.draftTask.title} ${parsed.draftTask.summary}`.toLowerCase();
+        const overlap = promptTokens.filter((t) => draftBlob.includes(t)).length;
+        if (promptTokens.length > 0 && overlap === 0) {
+          parsed.draftTask = {
+            title: grounded.title,
+            summary: grounded.summary,
+            effort: parsed.draftTask.effort || grounded.effort,
+            acceptanceCriteria:
+              parsed.draftTask.acceptanceCriteria.length > 0
+                ? parsed.draftTask.acceptanceCriteria
+                : grounded.acceptanceCriteria,
+          };
+        }
+      }
     }
     return parsed;
   } catch {

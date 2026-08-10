@@ -128,6 +128,7 @@ export const AIChatService = {
     const history = historyMsgs.slice(-8).map((m) => ({
       role: (m.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
       text: m.text,
+      state: m.state,
     }));
 
     const userMsg = {
@@ -327,6 +328,11 @@ export const CodebaseService = {
 export const KnowledgeService = {
   categories: () => getRepository().listKnowledge(),
   sources: () => getRepository().listSources(),
+  documents: (categoryId?: string) => getRepository().listKnowledgeDocuments(categoryId),
+  addDocument: (
+    doc: Parameters<ReturnType<typeof getRepository>['addKnowledgeDocument']>[0]
+  ) => getRepository().addKnowledgeDocument(doc),
+  deleteDocument: (id: string) => getRepository().deleteKnowledgeDocument(id),
 };
 
 export const DevelopmentService = {

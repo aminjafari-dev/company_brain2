@@ -150,6 +150,22 @@ export interface KnowledgeCategory {
   documentCount: number;
 }
 
+/** Manually added knowledge for a category (docs, notes, pasted content). */
+export interface KnowledgeDocument {
+  id: string;
+  workspaceId: string;
+  categoryId: string;
+  title: string;
+  notes?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  /** Text content from upload or paste (binary files may omit this). */
+  content?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DraftTask {
   title: string;
   summary: string;
@@ -291,6 +307,7 @@ export interface AppDatabase {
   insights: AIInsight[];
   sources: ConnectedSource[];
   knowledgeCategories: KnowledgeCategory[];
+  knowledgeDocuments: KnowledgeDocument[];
   conversations: Conversation[];
   messages: ChatMessage[];
   jiraIssues: JiraIssue[];
