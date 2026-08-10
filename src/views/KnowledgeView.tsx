@@ -404,17 +404,48 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
         </div>
 
         <div className="space-y-6">
-          <section className="bg-white border border-dashed border-[#c6c6cd] rounded-lg p-4 shadow-2xs">
+          <section className="bg-white border border-[#c6c6cd] rounded-lg p-4 shadow-2xs">
             <div className="flex items-center justify-between mb-3 border-b border-[#c6c6cd]/60 pb-3">
               <h2 className="text-[18px] font-semibold text-[#191c1e]">AI Knowledge Status</h2>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#eceef0] text-[#45464d]">
-                Coming soon
+              <span
+                className={`text-[11px] font-medium px-2 py-0.5 rounded ${
+                  totalDocuments > 0
+                    ? 'bg-[#e8f5e9] text-[#1b5e20]'
+                    : 'bg-[#eceef0] text-[#45464d]'
+                }`}
+              >
+                {totalDocuments > 0 ? 'Active' : 'Waiting for docs'}
               </span>
             </div>
-            <p className="text-[14px] text-[#45464d]">
-              Automatic sync coverage, last sync time, and vector indexing status will appear here
-              once external source connectors are ready.
-            </p>
+            <div className="space-y-3 text-[14px] text-[#45464d]">
+              <p>
+                Manual documents are retrieved on every AI chat and requirement analysis. Relevant
+                excerpts are ranked and injected as grounded company context.
+              </p>
+              <ul className="space-y-2 text-[13px]">
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-[#6063ee] mt-0.5">
+                    check_circle
+                  </span>
+                  <span>
+                    <span className="font-medium text-[#191c1e]">{totalDocuments}</span> manual
+                    document{totalDocuments === 1 ? '' : 's'} available for retrieval
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-[#6063ee] mt-0.5">
+                    psychology
+                  </span>
+                  <span>Used by AI Assistant and New Request analysis</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-[#76777d] mt-0.5">
+                    schedule
+                  </span>
+                  <span>Vector indexing for external sources still coming soon</span>
+                </li>
+              </ul>
+            </div>
           </section>
 
           <section>
@@ -425,8 +456,8 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
               </span>
             </div>
             <p className="text-[13px] text-[#45464d] mb-3">
-              GitHub, Notion, Confluence, and Jira indexing are not connected yet. Use manual upload
-              for now.
+              GitHub, Notion, Confluence, and Jira indexing are not connected yet. Manual uploads are
+              already used by the AI.
             </p>
             <div className="space-y-3">
               {COMING_SOON_SOURCES.map((src) => (

@@ -41,8 +41,12 @@ export interface DataRepository {
   deleteKnowledgeDocument(id: string): Promise<void>;
 
   getOrCreateConversation(userId: string): Promise<Conversation>;
+  listConversations(userId: string): Promise<Conversation[]>;
+  createConversation(userId: string): Promise<Conversation>;
+  setActiveConversation(userId: string, conversationId: string): Promise<Conversation>;
   listMessages(conversationId: string): Promise<ChatMessage[]>;
   appendMessages(messages: ChatMessage[]): Promise<void>;
+  updateMessage(message: ChatMessage): Promise<ChatMessage>;
 
   listJiraIssues(): Promise<JiraIssue[]>;
   upsertJiraIssues(issues: JiraIssue[]): Promise<void>;

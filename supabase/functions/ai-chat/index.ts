@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { prompt, history = [], model } = await req.json();
+    const { prompt, history = [], model, knowledgeContext, forceTaskReady } = await req.json();
     const key = Deno.env.get('GEMINI_API_KEY');
     if (!key) {
       return new Response(JSON.stringify({ error: 'GEMINI_API_KEY missing' }), {
@@ -24,11 +24,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    const knowledgeBlock =
+      typeof knowledgeContext === 'string' && knowledgeContext.trim()
+        ? `\n\n---\nGround your answers in the following company knowledge when relevant.\n${knowledgeContext.trim()}\n---`
+        : '';
+
+    const forceBlock = forceTaskReady
+      ? `\n\nIMPORTANT: Clarification answers provided. Return mode "task_ready" with draftTask. No more questions.`
+      : '';
+
     const ai = new GoogleGenAI({ apiKey: key });
     const system = `You are CompanyBrain's client intake agent.
-Ask exactly ONE clarifying question at a time until you can finalize ONE Jira task.
-Return ONLY JSON: {"state":"asking_question"|"ready_to_finalize"|"ready","text":"...","draftTask":{"title":"...","summary":"...","acceptanceCriteria":["..."],"effort":"Low"|"Medium"|"High"}}
-Omit draftTask unless state is ready_to_finalize.`;
+Choose mode "chat" (info only), "clarify" (1-5 questions each with exactly 3 options a/b/c), or "task_ready" (full draftTask).
+Prefer company knowledge; cite document titles when used.
+Return ONLY JSON:
+{"mode":"chat"|"clarify"|"task_ready","state":"ready"|"asking_question"|"ready_to_finalize","text":"...","clarification":{"intro":"...","questions":[{"id":"q1","prompt":"...","options":[{"id":"a","label":"..."},{"id":"b","label":"..."},{"id":"c","label":"..."}]}]},"draftTask":{"title":"...","summary":"...","acceptanceCriteria":["..."],"effort":"Low"|"Medium"|"High"}}
+Omit clarification unless clarify. Omit draftTask unless task_ready.${knowledgeBlock}${forceBlock}`;
 
     const response = await ai.models.generateContent({
       model: model || 'gemini-2.0-flash',
@@ -50,7 +61,7 @@ Omit draftTask unless state is ready_to_finalize.`;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      parsed = { state: 'ready', text: raw };
+      parsed = { mode: 'chat', state: 'ready', text: raw };
     }
 
     return new Response(JSON.stringify(parsed), {

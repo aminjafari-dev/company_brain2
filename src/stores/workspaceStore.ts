@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   CodeFile,
   ConnectedSource,
+  Conversation,
   DevelopmentTask,
   DraftTask,
   FeatureRequest,
@@ -15,6 +16,8 @@ import type {
   Project,
   ActivityEvent,
   WorkspaceSettings,
+  ClarificationAnswer,
+  ClarificationSession,
 } from '../types';
 import {
   ActivityService,
@@ -38,6 +41,8 @@ interface WorkspaceState {
   insights: AIInsight[];
   projects: Project[];
   metrics: OverviewMetrics | null;
+  conversations: Conversation[];
+  activeConversationId: string | null;
   messages: ChatMessage[];
   sources: ConnectedSource[];
   knowledge: KnowledgeCategory[];
@@ -60,6 +65,18 @@ interface WorkspaceState {
   requestMoreInfo: (id: string, actor: string) => Promise<void>;
   createJiraTasks: (id: string, actor: string) => Promise<void>;
   sendChat: (userId: string, text: string, actor: string) => Promise<void>;
+  createChat: (userId: string) => Promise<void>;
+  selectChat: (userId: string, conversationId: string) => Promise<void>;
+  saveClarificationProgress: (
+    messageId: string,
+    clarification: ClarificationSession
+  ) => Promise<void>;
+  submitClarificationAnswers: (
+    userId: string,
+    actor: string,
+    messageId: string,
+    answers: Record<string, ClarificationAnswer>
+  ) => Promise<void>;
   finalizeChatTask: (
     userId: string,
     actor: string,
@@ -88,6 +105,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   insights: [],
   projects: [],
   metrics: null,
+  conversations: [],
+  activeConversationId: null,
   messages: [],
   sources: [],
   knowledge: [],
@@ -109,11 +128,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   bootstrap: async (userId) => {
     set({ loading: true, error: null });
     try {
+      const activeConversation = await AIChatService.getActiveConversation(userId);
       const [
         requests,
         insights,
         projects,
         metrics,
+        conversations,
         messages,
         sources,
         knowledge,
@@ -129,6 +150,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         InsightService.list(),
         ProjectService.list(),
         RequestService.metrics(),
+        AIChatService.listConversations(userId),
         AIChatService.listMessages(userId),
         KnowledgeService.sources(),
         KnowledgeService.categories(),
@@ -145,6 +167,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         insights,
         projects,
         metrics,
+        conversations,
+        activeConversationId: activeConversation.id,
         messages,
         sources,
         knowledge,
@@ -219,8 +243,49 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     );
   },
   sendChat: async (userId, text, actor) => {
-    const { userMsg, aiMsg } = await AIChatService.send(userId, text, actor);
-    set({ messages: [...get().messages, userMsg, aiMsg] });
+    const { userMsg, aiMsg, conversationId, conversations } = await AIChatService.send(
+      userId,
+      text,
+      actor
+    );
+    set({
+      messages: [...get().messages, userMsg, aiMsg],
+      conversations,
+      activeConversationId: conversationId,
+    });
+  },
+  saveClarificationProgress: async (messageId, clarification) => {
+    const updated = await AIChatService.updateClarificationProgress(messageId, clarification);
+    set({
+      messages: get().messages.map((m) => (m.id === messageId ? updated : m)),
+    });
+  },
+  submitClarificationAnswers: async (userId, actor, messageId, answers) => {
+    const { messages, conversations, conversationId } =
+      await AIChatService.submitClarificationAnswers(userId, actor, messageId, answers);
+    set({
+      messages,
+      conversations,
+      activeConversationId: conversationId,
+    });
+  },
+  createChat: async (userId) => {
+    const conversation = await AIChatService.createConversation(userId);
+    const conversations = await AIChatService.listConversations(userId);
+    set({
+      conversations,
+      activeConversationId: conversation.id,
+      messages: [],
+    });
+  },
+  selectChat: async (userId, conversationId) => {
+    const { messages } = await AIChatService.selectConversation(userId, conversationId);
+    const conversations = await AIChatService.listConversations(userId);
+    set({
+      conversations,
+      activeConversationId: conversationId,
+      messages,
+    });
   },
   finalizeChatTask: async (userId, actor, draftTask) => {
     try {
@@ -229,19 +294,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         actor,
         draftTask
       );
-      const [requests, metrics, jiraIssues, activity, messages] = await Promise.all([
-        RequestService.list(),
-        RequestService.metrics(),
-        JiraService.list(),
-        ActivityService.list(),
-        AIChatService.listMessages(userId),
-      ]);
+      const [requests, metrics, jiraIssues, activity, messages, conversations, activeConversation] =
+        await Promise.all([
+          RequestService.list(),
+          RequestService.metrics(),
+          JiraService.list(),
+          ActivityService.list(),
+          AIChatService.listMessages(userId),
+          AIChatService.listConversations(userId),
+          AIChatService.getActiveConversation(userId),
+        ]);
       set({
         requests,
         metrics,
         jiraIssues,
         activity,
         messages,
+        conversations,
+        activeConversationId: activeConversation.id,
         selectedRequestId: request.id,
       });
       get().showToast(`${issue.key} created in real Jira`);

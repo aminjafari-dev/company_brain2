@@ -14,7 +14,7 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const modelDefault = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -45,10 +45,12 @@ function getClient() {
 
 app.post('/api/ai/chat', async (req, res) => {
   try {
-    const { prompt, history = [], model } = req.body as {
+    const { prompt, history = [], model, knowledgeContext, forceTaskReady } = req.body as {
       prompt: string;
       history?: { role: 'user' | 'model'; text: string }[];
       model?: string;
+      knowledgeContext?: string;
+      forceTaskReady?: boolean;
     };
     if (!prompt?.trim()) {
       res.status(400).json({ error: 'prompt required' });
@@ -56,24 +58,63 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     const ai = getClient();
+    const knowledgeBlock =
+      typeof knowledgeContext === 'string' && knowledgeContext.trim()
+        ? `\n\n---\nGround your answers in the following company knowledge when relevant.\n${knowledgeContext.trim()}\n---`
+        : '';
+
+    const forceBlock = forceTaskReady
+      ? `\n\nIMPORTANT: The user already answered clarification questions. You MUST return mode "task_ready" with a complete draftTask. Do not ask more questions.`
+      : '';
+
     const system = `You are CompanyBrain's client intake agent.
-Your job: talk with the client, ask clarifying questions, then finalize ONE development task for Jira.
+Choose exactly ONE response mode for the latest user message:
+
+1) mode "chat"
+   - Informational / exploratory questions (what/why/how, explanations).
+   - No intent to create a development task.
+   - Return helpful text only. Omit clarification and draftTask.
+
+2) mode "clarify"
+   - User wants to create/build/add/implement something, but key details are missing
+     (actor, platform, expected behavior, constraints, success/failure).
+   - Emit 1 to 5 clarifying questions (prefer 2–4).
+   - Each question MUST include exactly 3 concrete options (id a/b/c + label).
+   - Ground option labels in company knowledge when available.
+   - Do NOT include draftTask.
+   - text should be a short intro; full questions go in clarification.questions.
+
+3) mode "task_ready"
+   - Enough detail to draft ONE concrete Jira task, OR clarification answers were provided.
+   - Fill draftTask (title, summary, acceptanceCriteria, effort).
+   - Omit clarification.
 
 Rules:
-- The LATEST user message is the active request. draftTask title and summary MUST reflect that message, not earlier topics.
-- If the latest message is a new create/add/build request, treat it as a fresh task even if history mentions something else (e.g. payments).
-- Never reuse an old feature (Apple Pay, checkout, etc.) unless the latest user message clearly asks for it.
-- Ask exactly ONE clear question at a time when information is missing.
-- Cover: who the user is, goal, platform (iOS/Android/web), expected behavior, and constraints/edge cases.
-- Be concise and professional. Do not invent unrelated features.
-- When you have enough detail to write a concrete task, set state to "ready_to_finalize" and fill draftTask.
-- Otherwise set state to "asking_question".
-- Use state "ready" only for general Q&A that is not a new work request.
+- The LATEST user message is the active request. draftTask MUST reflect that message.
+- Never reuse an old feature unless the latest message clearly asks for it.
+- Prefer company knowledge over generic assumptions; briefly cite document titles when used.
+- If knowledge already answers a detail, do not re-ask it in clarify mode.
+- Be concise and professional.
 
-Return ONLY valid JSON (no markdown) with this shape:
+Return ONLY valid JSON (no markdown):
 {
-  "state": "asking_question" | "ready_to_finalize" | "ready",
+  "mode": "chat" | "clarify" | "task_ready",
+  "state": "ready" | "asking_question" | "ready_to_finalize",
   "text": "message shown to the client",
+  "clarification": {
+    "intro": "short preamble",
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "question text",
+        "options": [
+          { "id": "a", "label": "option A" },
+          { "id": "b", "label": "option B" },
+          { "id": "c", "label": "option C" }
+        ]
+      }
+    ]
+  },
   "draftTask": {
     "title": "short Jira summary",
     "summary": "1-3 sentence description",
@@ -81,7 +122,8 @@ Return ONLY valid JSON (no markdown) with this shape:
     "effort": "Low" | "Medium" | "High"
   }
 }
-Omit draftTask unless state is "ready_to_finalize".`;
+Map state to mode: chat→ready, clarify→asking_question, task_ready→ready_to_finalize.
+Omit clarification unless mode is clarify. Omit draftTask unless mode is task_ready.${knowledgeBlock}${forceBlock}`;
 
     const contents = [
       ...history.map((h) => ({
@@ -102,8 +144,17 @@ Omit draftTask unless state is "ready_to_finalize".`;
 
     const raw = response.text || '{}';
     let parsed: {
+      mode?: string;
       state?: string;
       text?: string;
+      clarification?: {
+        intro?: string;
+        questions?: {
+          id?: string;
+          prompt?: string;
+          options?: { id?: string; label?: string }[];
+        }[];
+      };
       draftTask?: {
         title?: string;
         summary?: string;
@@ -114,18 +165,70 @@ Omit draftTask unless state is "ready_to_finalize".`;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      parsed = { state: 'ready', text: raw };
+      parsed = { mode: 'chat', state: 'ready', text: raw };
     }
 
+    let mode: 'chat' | 'clarify' | 'task_ready' =
+      parsed.mode === 'clarify' || parsed.mode === 'task_ready' || parsed.mode === 'chat'
+        ? parsed.mode
+        : parsed.state === 'ready_to_finalize'
+          ? 'task_ready'
+          : parsed.state === 'asking_question'
+            ? 'clarify'
+            : 'chat';
+
+    if (forceTaskReady) mode = 'task_ready';
+
     const state =
-      parsed.state === 'asking_question' ||
-      parsed.state === 'ready_to_finalize' ||
-      parsed.state === 'ready'
-        ? parsed.state
-        : 'ready';
+      mode === 'task_ready'
+        ? 'ready_to_finalize'
+        : mode === 'clarify'
+          ? 'asking_question'
+          : 'ready';
+
+    const questions = Array.isArray(parsed.clarification?.questions)
+      ? parsed.clarification!.questions!
+          .filter((q) => q && typeof q.prompt === 'string' && q.prompt.trim())
+          .slice(0, 5)
+          .map((q, qi) => {
+            const opts = (Array.isArray(q.options) ? q.options : [])
+              .filter((o) => o && typeof o.label === 'string' && o.label.trim())
+              .slice(0, 3)
+              .map((o, oi) => ({
+                id: (o.id && String(o.id).trim()) || ['a', 'b', 'c'][oi],
+                label: String(o.label).trim(),
+              }));
+            while (opts.length < 3) {
+              opts.push({
+                id: ['a', 'b', 'c'][opts.length],
+                label: ['Not sure yet', 'Need discussion', 'Other'][opts.length],
+              });
+            }
+            return {
+              id: (q.id && String(q.id).trim()) || `q${qi + 1}`,
+              prompt: String(q.prompt).trim(),
+              options: opts,
+            };
+          })
+      : [];
+
+    const clarification =
+      mode === 'clarify' && questions.length > 0
+        ? {
+            intro:
+              (parsed.clarification?.intro && String(parsed.clarification.intro).trim()) ||
+              parsed.text ||
+              'I need a few details before drafting the task.',
+            questions,
+          }
+        : undefined;
+
+    if (mode === 'clarify' && !clarification) {
+      mode = 'chat';
+    }
 
     const draft =
-      state === 'ready_to_finalize' && parsed.draftTask?.title
+      mode === 'task_ready' && parsed.draftTask?.title
         ? {
             title: parsed.draftTask.title,
             summary: parsed.draftTask.summary || parsed.draftTask.title,
@@ -142,8 +245,14 @@ Omit draftTask unless state is "ready_to_finalize".`;
         : undefined;
 
     res.json({
-      text: parsed.text || 'I could not generate a response.',
-      state,
+      text: parsed.text || clarification?.intro || 'I could not generate a response.',
+      mode: clarification ? 'clarify' : mode === 'task_ready' ? 'task_ready' : 'chat',
+      state: clarification
+        ? 'asking_question'
+        : mode === 'task_ready'
+          ? 'ready_to_finalize'
+          : 'ready',
+      clarification,
       draftTask: draft,
     });
   } catch (e) {
@@ -154,23 +263,33 @@ Omit draftTask unless state is "ready_to_finalize".`;
 
 app.post('/api/ai/analyze-requirement', async (req, res) => {
   try {
-    const { prompt, model } = req.body as { prompt: string; model?: string };
+    const { prompt, model, knowledgeContext } = req.body as {
+      prompt: string;
+      model?: string;
+      knowledgeContext?: string;
+    };
     if (!prompt?.trim()) {
       res.status(400).json({ error: 'prompt required' });
       return;
     }
 
+    const knowledgeBlock =
+      typeof knowledgeContext === 'string' && knowledgeContext.trim()
+        ? `\n\nCompany knowledge to ground the analysis:\n${knowledgeContext.trim()}\n`
+        : '';
+
     const ai = getClient();
     const response = await ai.models.generateContent({
       model: model || modelDefault,
       contents: `Turn this client request into structured JSON for a product requirement.
+Ground objective, businessGoal, productContext, technicalImpactSummary, and acceptanceCriteria in company knowledge when available. Mention source document titles inside productContext entries when used.
 Return ONLY JSON with keys:
 id (REQ-####), title, subtitle, status ("AI Analyzed"), confidence (number),
-objective, businessGoal, businessRequirements, acceptanceCriteria (array of {id,text,completed}),
+objective, businessGoal, productContext (string array), businessRequirements, acceptanceCriteria (array of {id,text,completed}),
 technicalImpactSummary, aiRecommendation ({title,description}),
 devPlan (array of {seq,component,task,effort,jiraCreated}),
 completeness ({businessRequirement,userActor,goal,expectedBehavior,platform,acceptanceCriteria,edgeCases,score}).
-
+${knowledgeBlock}
 Client request:
 ${prompt}`,
       config: {

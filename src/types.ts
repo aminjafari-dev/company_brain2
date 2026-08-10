@@ -180,6 +180,35 @@ export type ChatAgentState =
   | 'finalized'
   | 'error';
 
+/** How the AI chose to respond for this turn. */
+export type ChatResponseMode = 'chat' | 'clarify' | 'task_ready';
+
+export interface ClarifyingOption {
+  id: string;
+  label: string;
+}
+
+export interface ClarifyingQuestion {
+  id: string;
+  prompt: string;
+  /** Exactly three concrete choices; UI also offers a custom answer. */
+  options: ClarifyingOption[];
+}
+
+export interface ClarificationAnswer {
+  optionId?: string;
+  customText?: string;
+}
+
+export interface ClarificationSession {
+  intro: string;
+  questions: ClarifyingQuestion[];
+  answers?: Record<string, ClarificationAnswer>;
+  /** 0-based index of the question currently shown. */
+  currentIndex?: number;
+  status: 'in_progress' | 'completed';
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -187,6 +216,8 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   state?: ChatAgentState;
+  mode?: ChatResponseMode;
+  clarification?: ClarificationSession;
   draftTask?: DraftTask;
   jiraKey?: string;
   jiraUrl?: string;

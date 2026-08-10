@@ -180,6 +180,49 @@ export const localRepository: DataRepository = {
     return delay(conv);
   },
 
+  async listConversations(userId) {
+    const list = loadDatabase()
+      .conversations.filter((c) => c.userId === userId)
+      .slice()
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return delay(list);
+  },
+
+  async createConversation(userId) {
+    const now = new Date().toISOString();
+    const conv: Conversation = {
+      id: `conv-${Date.now()}`,
+      workspaceId: WORKSPACE_ID,
+      userId,
+      title: 'New conversation',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    updateDatabase((db) => {
+      for (const c of db.conversations) {
+        if (c.userId === userId && c.status === 'active') c.status = 'archived';
+      }
+      db.conversations.unshift(conv);
+    });
+    return delay(conv);
+  },
+
+  async setActiveConversation(userId, conversationId) {
+    const db = loadDatabase();
+    const target = db.conversations.find((c) => c.id === conversationId && c.userId === userId);
+    if (!target) throw new Error('Conversation not found');
+    updateDatabase((d) => {
+      for (const c of d.conversations) {
+        if (c.userId !== userId) continue;
+        c.status = c.id === conversationId ? 'active' : 'archived';
+      }
+      const conv = d.conversations.find((c) => c.id === conversationId);
+      if (conv) conv.updatedAt = new Date().toISOString();
+    });
+    return delay({ ...target, status: 'active', updatedAt: new Date().toISOString() });
+  },
+
   async listMessages(conversationId) {
     return delay(loadDatabase().messages.filter((m) => m.conversationId === conversationId));
   },
@@ -190,10 +233,39 @@ export const localRepository: DataRepository = {
       const convId = messages[0]?.conversationId;
       if (convId) {
         const conv = db.conversations.find((c) => c.id === convId);
-        if (conv) conv.updatedAt = new Date().toISOString();
+        if (conv) {
+          conv.updatedAt = new Date().toISOString();
+          const firstUser = messages.find((m) => m.sender === 'user');
+          if (firstUser && (conv.title === 'New conversation' || !conv.title.trim())) {
+            const existingUserMsgs = db.messages.filter(
+              (m) => m.conversationId === convId && m.sender === 'user'
+            );
+            if (existingUserMsgs.length === 1) {
+              conv.title =
+                firstUser.text.length > 48
+                  ? `${firstUser.text.slice(0, 48).trim()}…`
+                  : firstUser.text.trim();
+            }
+          }
+        }
       }
     });
     await delay(undefined);
+  },
+
+  async updateMessage(message) {
+    let updated: ChatMessage | null = null;
+    updateDatabase((db) => {
+      const idx = db.messages.findIndex((m) => m.id === message.id);
+      if (idx >= 0) {
+        db.messages[idx] = message;
+        updated = message;
+        const conv = db.conversations.find((c) => c.id === message.conversationId);
+        if (conv) conv.updatedAt = new Date().toISOString();
+      }
+    });
+    if (!updated) throw new Error('Message not found');
+    return delay(updated);
   },
 
   async listJiraIssues() {

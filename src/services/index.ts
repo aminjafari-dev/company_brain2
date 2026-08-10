@@ -5,8 +5,15 @@ import type {
   JiraIssue,
   OverviewMetrics,
   RequestStatus,
+  ClarificationAnswer,
+  ClarificationSession,
+  ChatMessage,
 } from '../types';
-import { analyzeRequirement, chatWithAI } from './aiService';
+import {
+  analyzeRequirement,
+  chatWithAI,
+  formatClarificationAnswersForPrompt,
+} from './aiService';
 import { getRepository } from './dataProvider';
 import { WORKSPACE_ID } from '../data/seed';
 import { config } from '../lib/config';
@@ -121,6 +128,18 @@ export const RequestService = {
 };
 
 export const AIChatService = {
+  listConversations: (userId: string) => getRepository().listConversations(userId),
+
+  async createConversation(userId: string) {
+    return getRepository().createConversation(userId);
+  },
+
+  async selectConversation(userId: string, conversationId: string) {
+    await getRepository().setActiveConversation(userId, conversationId);
+    const messages = await getRepository().listMessages(conversationId);
+    return { conversationId, messages };
+  },
+
   async send(userId: string, text: string, actorName: string) {
     const repo = getRepository();
     const conversation = await repo.getOrCreateConversation(userId);
@@ -131,10 +150,10 @@ export const AIChatService = {
       state: m.state,
     }));
 
-    const userMsg = {
+    const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       conversationId: conversation.id,
-      sender: 'user' as const,
+      sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
@@ -146,14 +165,16 @@ export const AIChatService = {
       history,
     });
 
-    const aiMsg = {
+    const aiMsg: ChatMessage = {
       id: `msg-${Date.now() + 1}`,
       conversationId: conversation.id,
-      sender: 'ai' as const,
+      sender: 'ai',
       text: ai.text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       analysisCard: ai.analysisCard,
       state: ai.state as ChatAgentState,
+      mode: ai.mode,
+      clarification: ai.clarification,
       draftTask: ai.draftTask,
     };
     await repo.appendMessages([aiMsg]);
@@ -164,7 +185,134 @@ export const AIChatService = {
       target: conversation.id,
       detail: text.slice(0, 80),
     });
-    return { userMsg, aiMsg, state: ai.state };
+    const conversations = await repo.listConversations(userId);
+    return { userMsg, aiMsg, state: ai.state, conversationId: conversation.id, conversations };
+  },
+
+  /** Persist progress on a clarify session (answers + currentIndex) without calling AI. */
+  async updateClarificationProgress(
+    messageId: string,
+    clarification: ClarificationSession
+  ): Promise<ChatMessage> {
+    const repo = getRepository();
+    const conversationId = clarification
+      ? (
+          await (async () => {
+            // Find message across conversations by scanning active DB messages.
+            const db = await repo.getDb();
+            return db.messages.find((m) => m.id === messageId)?.conversationId;
+          })()
+        )
+      : undefined;
+    if (!conversationId) throw new Error('Clarification message not found');
+    const messages = await repo.listMessages(conversationId);
+    const existing = messages.find((m) => m.id === messageId);
+    if (!existing) throw new Error('Clarification message not found');
+    const updated: ChatMessage = {
+      ...existing,
+      clarification,
+    };
+    return repo.updateMessage(updated);
+  },
+
+  /**
+   * After the user finishes all clarifying questions, mark the session complete,
+   * append a summary user message, and ask AI for a task_ready draft.
+   */
+  async submitClarificationAnswers(
+    userId: string,
+    actorName: string,
+    messageId: string,
+    answers: Record<string, ClarificationAnswer>
+  ) {
+    const repo = getRepository();
+    const conversation = await repo.getOrCreateConversation(userId);
+    const messages = await repo.listMessages(conversation.id);
+    const clarifyMsg = messages.find((m) => m.id === messageId);
+    if (!clarifyMsg?.clarification) {
+      throw new Error('Clarification session not found');
+    }
+
+    const completedSession: ClarificationSession = {
+      ...clarifyMsg.clarification,
+      answers,
+      currentIndex: clarifyMsg.clarification.questions.length,
+      status: 'completed',
+    };
+    await repo.updateMessage({
+      ...clarifyMsg,
+      clarification: completedSession,
+    });
+
+    // Find the user request that preceded this clarify message.
+    const clarifyIdx = messages.findIndex((m) => m.id === messageId);
+    let originalRequest = '';
+    for (let i = clarifyIdx - 1; i >= 0; i--) {
+      if (messages[i].sender === 'user') {
+        originalRequest = messages[i].text;
+        break;
+      }
+    }
+    if (!originalRequest) originalRequest = 'Client feature request';
+
+    const answerPrompt = formatClarificationAnswersForPrompt(
+      originalRequest,
+      completedSession,
+      answers
+    );
+
+    const userMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      conversationId: conversation.id,
+      sender: 'user',
+      text: answerPrompt,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    await repo.appendMessages([userMsg]);
+
+    const historyMsgs = await repo.listMessages(conversation.id);
+    const history = historyMsgs.slice(-10).map((m) => ({
+      role: (m.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+      text: m.text,
+      state: m.state,
+    }));
+
+    const ai = await chatWithAI({
+      prompt: answerPrompt,
+      conversationId: conversation.id,
+      history: history.slice(0, -1),
+      forceTaskReady: true,
+    });
+
+    const aiMsg: ChatMessage = {
+      id: `msg-${Date.now() + 1}`,
+      conversationId: conversation.id,
+      sender: 'ai',
+      text: ai.text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      analysisCard: ai.analysisCard,
+      state: 'ready_to_finalize',
+      mode: 'task_ready',
+      draftTask: ai.draftTask,
+    };
+    await repo.appendMessages([aiMsg]);
+    await repo.appendActivity({
+      workspaceId: WORKSPACE_ID,
+      actor: actorName,
+      action: 'completed AI clarification',
+      target: conversation.id,
+      detail: originalRequest.slice(0, 80),
+    });
+
+    const conversations = await repo.listConversations(userId);
+    const refreshed = await repo.listMessages(conversation.id);
+    return {
+      userMsg,
+      aiMsg,
+      conversations,
+      conversationId: conversation.id,
+      messages: refreshed,
+    };
   },
 
   async finalizeToJira(userId: string, actorName: string, draftTask: DraftTask) {
@@ -307,6 +455,10 @@ export const AIChatService = {
     const conv = await getRepository().getOrCreateConversation(userId);
     return getRepository().listMessages(conv.id);
   },
+
+  getActiveConversation: async (userId: string) => {
+    return getRepository().getOrCreateConversation(userId);
+  },
 };
 
 export const ProjectService = {
@@ -334,6 +486,9 @@ export const KnowledgeService = {
   ) => getRepository().addKnowledgeDocument(doc),
   deleteDocument: (id: string) => getRepository().deleteKnowledgeDocument(id),
 };
+
+export { buildKnowledgeContext } from './knowledgeContext';
+export type { KnowledgeContextBundle, KnowledgeHit } from './knowledgeContext';
 
 export const DevelopmentService = {
   list: () => getRepository().listDevelopmentTasks(),

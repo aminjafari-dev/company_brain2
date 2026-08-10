@@ -161,7 +161,7 @@ function AppShell() {
       />
 
       <main className="ml-[240px] pt-16 flex-1 flex flex-col min-h-[calc(100vh-64px)]">
-        <div className="flex-1">
+        <div className={`flex-1 ${activeTab === 'ai-assistant' ? 'min-h-0 overflow-hidden' : ''}`}>
           <Routes>
             <Route
               path="/overview"
@@ -184,17 +184,38 @@ function AppShell() {
               path="/ai"
               element={
                 <AIAssistantView
+                  conversations={store.conversations}
+                  activeConversationId={store.activeConversationId}
                   messages={store.messages}
                   onSendMessage={async (text) => {
                     if (!user) return;
                     await store.sendChat(user.id, text, user.displayName);
                   }}
+                  onNewChat={async () => {
+                    if (!user) return;
+                    await store.createChat(user.id);
+                  }}
+                  onSelectChat={async (conversationId) => {
+                    if (!user) return;
+                    await store.selectChat(user.id, conversationId);
+                  }}
                   onFinalizeToJira={async (draftTask) => {
                     if (!user) return;
                     await store.finalizeChatTask(user.id, user.displayName, draftTask);
                   }}
+                  onSaveClarificationProgress={async (messageId, clarification) => {
+                    await store.saveClarificationProgress(messageId, clarification);
+                  }}
+                  onSubmitClarificationAnswers={async (messageId, answers) => {
+                    if (!user) return;
+                    await store.submitClarificationAnswers(
+                      user.id,
+                      user.displayName,
+                      messageId,
+                      answers
+                    );
+                  }}
                   onNavigateTab={setActiveTab}
-                  onOpenDependencyGraph={() => ui.setDependencyGraphOpen(true)}
                 />
               }
             />
@@ -317,7 +338,7 @@ function AppShell() {
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
         </div>
-        <Footer />
+        {activeTab !== 'ai-assistant' && <Footer />}
       </main>
 
       <CodeViewerModal
