@@ -209,6 +209,9 @@ export interface ClarificationSession {
   status: 'in_progress' | 'completed';
 }
 
+/** Whether the assistant reply came from the live model or local offline fallback. */
+export type ChatResponseSource = 'ai' | 'offline';
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -217,6 +220,8 @@ export interface ChatMessage {
   timestamp: string;
   state?: ChatAgentState;
   mode?: ChatResponseMode;
+  /** Present on assistant messages: live Gemini vs offline rules. */
+  responseSource?: ChatResponseSource;
   clarification?: ClarificationSession;
   draftTask?: DraftTask;
   jiraKey?: string;

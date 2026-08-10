@@ -3,7 +3,14 @@ import { createSeedDatabase } from './seed';
 
 const STORAGE_KEY = 'CompanyBrain-workspace-db-v1';
 const SESSION_KEY = 'CompanyBrain-workspace-session-v1';
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
+
+const SHUTDOWN_MODELS = new Set([
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+]);
 
 function migrateDatabase(db: AppDatabase): AppDatabase {
   let next = { ...db };
@@ -23,6 +30,14 @@ function migrateDatabase(db: AppDatabase): AppDatabase {
         ...cat,
         documentCount: counts.get(cat.id) ?? 0,
       })),
+    };
+  }
+
+  // Older Flash IDs are shut down or return free-tier limit: 0 for new keys.
+  if (next.settings && SHUTDOWN_MODELS.has(next.settings.geminiModel)) {
+    next = {
+      ...next,
+      settings: { ...next.settings, geminiModel: 'gemini-flash-latest' },
     };
   }
 
@@ -46,7 +61,8 @@ export function loadDatabase(): AppDatabase {
     }
     if (
       parsed.version < CURRENT_VERSION ||
-      !Array.isArray(parsed.knowledgeDocuments)
+      !Array.isArray(parsed.knowledgeDocuments) ||
+      (parsed.settings && SHUTDOWN_MODELS.has(parsed.settings.geminiModel))
     ) {
       const migrated = migrateDatabase(parsed);
       saveDatabase(migrated);

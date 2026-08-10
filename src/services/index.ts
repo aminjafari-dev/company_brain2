@@ -174,6 +174,7 @@ export const AIChatService = {
       analysisCard: ai.analysisCard,
       state: ai.state as ChatAgentState,
       mode: ai.mode,
+      responseSource: ai.responseSource,
       clarification: ai.clarification,
       draftTask: ai.draftTask,
     };
@@ -293,6 +294,7 @@ export const AIChatService = {
       analysisCard: ai.analysisCard,
       state: 'ready_to_finalize',
       mode: 'task_ready',
+      responseSource: ai.responseSource,
       draftTask: ai.draftTask,
     };
     await repo.appendMessages([aiMsg]);

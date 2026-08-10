@@ -3,6 +3,7 @@ import type {
   ChatAgentState,
   ChatMessage,
   ChatResponseMode,
+  ChatResponseSource,
   ClarificationAnswer,
   ClarificationSession,
   ClarifyingQuestion,
@@ -39,6 +40,7 @@ export interface AIChatResponse {
   analysisCard?: ChatMessage['analysisCard'];
   state: AIAgentState;
   mode: ChatResponseMode;
+  responseSource: ChatResponseSource;
   draftTask?: DraftTask;
   clarification?: ClarificationSession;
 }
@@ -146,6 +148,7 @@ function parseChatPayload(raw: unknown): AIChatResponse | null {
       text: data.text,
       state: 'ready',
       mode: 'chat',
+      responseSource: 'ai',
       analysisCard: data.analysisCard as ChatMessage['analysisCard'] | undefined,
     };
   }
@@ -154,6 +157,7 @@ function parseChatPayload(raw: unknown): AIChatResponse | null {
     text: data.text,
     state: mode === 'clarify' ? 'asking_question' : mode === 'task_ready' ? 'ready_to_finalize' : state,
     mode,
+    responseSource: 'ai',
     draftTask: mode === 'task_ready' ? draftTask : undefined,
     clarification,
     analysisCard: data.analysisCard as ChatMessage['analysisCard'] | undefined,
@@ -322,6 +326,7 @@ function offlineReply(
     return {
       mode: 'task_ready',
       state: 'ready_to_finalize',
+      responseSource: 'offline',
       text: `I have enough detail to create a Jira task. Review the draft below and confirm to write it to Jira.${knowledgeHint}`,
       draftTask: buildDraftFromConversation(prompt, history),
     };
@@ -331,6 +336,7 @@ function offlineReply(
     return {
       mode: 'chat',
       state: 'ready',
+      responseSource: 'offline',
       text:
         knowledgeTitles.length > 0
           ? `Based on your company knowledge (${knowledgeTitles.slice(0, 2).join(', ')}), here is what I can share: the local AI proxy is offline, so this is a lightweight summary. Re-ask once the proxy is online for a grounded answer from those documents.`
@@ -356,6 +362,7 @@ function offlineReply(
     return {
       mode: 'task_ready',
       state: 'ready_to_finalize',
+      responseSource: 'offline',
       text: `I have enough detail to create a Jira task. Review the draft below and confirm to write it to Jira.${knowledgeHint}`,
       draftTask: buildDraftFromConversation(prompt, history),
     };
@@ -366,6 +373,7 @@ function offlineReply(
     return {
       mode: 'clarify',
       state: 'asking_question',
+      responseSource: 'offline',
       text: clarification.intro,
       clarification,
     };
@@ -374,6 +382,7 @@ function offlineReply(
   return {
     mode: 'chat',
     state: 'ready',
+    responseSource: 'offline',
     text: `Happy to help.${knowledgeHint || ' Ask me anything about your product, or describe a feature to turn into a Jira task.'}`,
   };
 }

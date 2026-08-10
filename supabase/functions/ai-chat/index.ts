@@ -42,7 +42,7 @@ Return ONLY JSON:
 Omit clarification unless clarify. Omit draftTask unless task_ready.${knowledgeBlock}${forceBlock}`;
 
     const response = await ai.models.generateContent({
-      model: model || 'gemini-2.0-flash',
+      model: model || 'gemini-flash-latest',
       contents: [
         ...history.map((h: { role: string; text: string }) => ({
           role: h.role,

@@ -12,7 +12,7 @@ dotenv.config({ path: '.env.local', override: true });
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
-const modelDefault = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const modelDefault = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
 app.use(express.json({ limit: '2mb' }));
 

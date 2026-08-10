@@ -693,7 +693,7 @@ export function createSeedDatabase(): AppDatabase {
     settings: {
       workspaceId: WORKSPACE_ID,
       aiAutonomy: 'Require Approval',
-      geminiModel: 'gemini-2.0-flash',
+      geminiModel: 'gemini-flash-latest',
       syncIntervalMinutes: 15,
     },
   };

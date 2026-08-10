@@ -15,7 +15,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSave,
   onResetDemo,
 }) => {
-  const [model, setModel] = useState(settings?.geminiModel ?? 'gemini-2.0-flash');
+  const [model, setModel] = useState(settings?.geminiModel ?? 'gemini-flash-latest');
   const [autonomy, setAutonomy] = useState<WorkspaceSettings['aiAutonomy']>(
     settings?.aiAutonomy ?? 'Require Approval'
   );
@@ -50,10 +50,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="bg-white border border-[#c6c6cd] rounded-lg p-6 shadow-2xs">
           <h3 className="text-[18px] font-semibold text-[#191c1e] mb-1">AI Intelligence Engine</h3>
           <p className="text-[14px] text-[#45464d] mb-4">
-            Model used by the local AI proxy / Edge Function.
+            Model used by the local AI proxy. Use gemini-flash-latest on free tier —
+            gemini-2.0-flash / gemini-2.5-flash are shut down or return quota limit 0 for new keys.
           </p>
           <div className="space-y-3">
-            {['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'].map((m) => (
+            {['gemini-flash-latest', 'gemini-3-flash-preview', 'gemini-2.5-pro'].map((m) => (
               <label
                 key={m}
                 className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-[#f7f9fb] border-[#c6c6cd]"
